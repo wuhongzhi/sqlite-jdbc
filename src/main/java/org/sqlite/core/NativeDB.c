@@ -35,7 +35,7 @@ static jclass strclass = 0;
 static jobject strencoding = 0;
 
 typedef enum {
-    ARRAY = 1, BUFFER, STRING_C, STRING_JAVA, STRING_CESU8
+    ARRAY = 1, BUFFER, STRING_CUTF8, STRING_JUTF8, STRING_CESU8
 } SQLITEJDBC_STRING_CODING;
 
 inline static void * toref(jlong value)
@@ -286,7 +286,7 @@ inline static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length
         return (*env)->NewStringUTF(env, bytes);
     }
 
-    if (mode == STRING_JAVA) {
+    if (mode == STRING_JUTF8) {
         static jmethodID mth = 0;
         if (!mth) {
             mth = (*env)->GetMethodID(
@@ -353,7 +353,7 @@ inline static const char* objectToBytes(JNIEnv *env, jobject object, jsize* size
         return ret;
     }
 
-    if (mode == STRING_JAVA) {
+    if (mode == STRING_JUTF8) {
         static jmethodID mth = 0;
         if (!mth) {
             mth = (*env)->GetMethodID(
@@ -471,7 +471,7 @@ static void xFunc_error(sqlite3_context *context, JNIEnv *env)
     msg = (jstring)(*env)->CallObjectMethod(env, ex, exp_msg);
     if (!msg) { sqlite3_result_error(context, "unknown error", 13); return; }
 
-    msg_bytes = objectToBytes(env, msg, &size, STRING_C);
+    msg_bytes = objectToBytes(env, msg, &size, STRING_CUTF8);
     if (!msg_bytes)
     {
         sqlite3_result_error_nomem(context); 
@@ -479,7 +479,7 @@ static void xFunc_error(sqlite3_context *context, JNIEnv *env)
     }
 
     sqlite3_result_error(context, msg_bytes, size);
-    freeBytes(env, msg, msg_bytes, STRING_C);
+    freeBytes(env, msg, msg_bytes, STRING_CUTF8);
 }
 
 /* used to call xFunc, xStep and xFinal */
@@ -1306,7 +1306,7 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1blob(
 
     rc = sqlite3_bind_blob(toref(stmt), pos, bytes, size, SQLITE_TRANSIENT);
 
-    freeBytes(env, v, bytes, STRING_C);
+    freeBytes(env, v, bytes, STRING_CUTF8);
 
     return rc;
 }
@@ -1356,7 +1356,7 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1blob(
         sqlite3_result_null(toref(context));
     } else {
         sqlite3_result_blob(toref(context), bytes, size, SQLITE_TRANSIENT);
-        freeBytes(env, NULL, bytes, STRING_C);
+        freeBytes(env, NULL, bytes, STRING_CUTF8);
     }
 }
 
@@ -1885,8 +1885,8 @@ void update_hook(void *context, int type, char const *database, char const *tabl
     JNIEnv *env = 0;
     (*update_handler_context.vm)->AttachCurrentThread(update_handler_context.vm, (void **)&env, 0);
 
-    jstring tableString = bytesToObject(env, table, strlen(table), STRING_C);
-    jstring databaseString = bytesToObject(env, database, strlen(database), STRING_C);
+    jstring tableString = bytesToObject(env, table, strlen(table), STRING_CUTF8);
+    jstring databaseString = bytesToObject(env, database, strlen(database), STRING_CUTF8);
     (*env)->CallVoidMethod(env, update_handler_context.handler, update_handler_context.method, type, databaseString, tableString, row);
 }
 

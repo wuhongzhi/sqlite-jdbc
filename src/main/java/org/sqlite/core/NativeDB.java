@@ -30,7 +30,7 @@ import org.sqlite.SQLiteJDBCLoader;
 public final class NativeDB extends DB
 {
 	public static enum SQLITEJDBC_STRING_CODING {
-		ARRAY(1), BUFFER(2), STRING_C(3), STRING_JAVA(4), STRING_CESU8(5);
+		ARRAY(1), BUFFER(2), STRING_CUTF8(3), STRING_JUTF8(4), STRING_CESU8(5);
 		int value;
 		SQLITEJDBC_STRING_CODING(int m) {
 			value = m;
@@ -511,9 +511,9 @@ public final class NativeDB extends DB
     	switch (stringEncoding) {
     	case ARRAY:
     		return string.getBytes(StandardCharsets.UTF_8);
-    	case STRING_C:
-    	case STRING_JAVA:
     	case STRING_CESU8:
+    	case STRING_CUTF8:
+    	case STRING_JUTF8:
     	case BUFFER:
     	default:
     		return string;
