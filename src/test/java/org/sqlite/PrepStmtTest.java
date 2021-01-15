@@ -39,7 +39,8 @@ public class PrepStmtTest
 
     private static byte[] getUtf8Bytes(String str) {
         try {
-            return str.getBytes("CESU-8");
+            //return str.getBytes("CESU-8");
+            return str.getBytes("UTF-8");
         }
         catch (UnsupportedEncodingException e) {
             fail(e.getMessage());
