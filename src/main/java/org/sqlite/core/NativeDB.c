@@ -165,10 +165,6 @@ inline static char* UTF16toUTF8(JNIEnv *env, const jchar* src, jsize size, jsize
                     i+=1;
                 }
             }
-        } else {            
-            free(dst);
-            throwex_msg(env, "Bad UTF-16 encoding!");
-            return NULL;
         }
         if (uc == -1) {
             free(dst);
@@ -252,10 +248,6 @@ inline static jchar* UTF8toUTF16(JNIEnv *env, const char* src, jsize size, jsize
                     i+=3;
                 }
             }
-        } else {
-            free(dst);
-            throwex_msg(env, "Bad UTF-8 encoding!");
-            return NULL;
         }
         if (uc == -1) {
             free(dst);
