@@ -1,6 +1,11 @@
 package org.sqlite;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.ByteArrayInputStream;
 import java.io.UnsupportedEncodingException;
@@ -16,8 +21,9 @@ import java.util.StringTokenizer;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
+import org.sqlite.core.NativeDB;
+import org.sqlite.core.NativeDB.SQLITEJDBC_STRING_CODING;
 
 /** These tests are designed to stress PreparedStatements on memory dbs. */
 public class PrepStmtTest
@@ -39,8 +45,7 @@ public class PrepStmtTest
 
     private static byte[] getUtf8Bytes(String str) {
         try {
-            //return str.getBytes("CESU-8");
-            return str.getBytes("UTF-8");
+            return str.getBytes(NativeDB.stringEncoding == SQLITEJDBC_STRING_CODING.STRING_CESU8 ? "CESU-8" : "UTF-8");
         }
         catch (UnsupportedEncodingException e) {
             fail(e.getMessage());
