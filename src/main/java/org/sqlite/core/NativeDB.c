@@ -272,7 +272,7 @@ inline static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length
         static jmethodID mth = 0;
         if (!mth) {
             mth = (*env)->GetMethodID(
-                env, strclass, "<init>", "([BLjava/nio/charset/Charset;)V");
+                env, strclass, "<init>", "([BIILjava/nio/charset/Charset;)V");
         }
 
         jbyteArray array;    
@@ -281,7 +281,7 @@ inline static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length
             return NULL;
         }
 
-        return (*env)->NewObject(env, strclass, mth, array, strencoding);
+        return (*env)->NewObject(env, strclass, mth, array, 0, length, strencoding);
     }
 
     //STRING C
