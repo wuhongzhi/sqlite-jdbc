@@ -17,8 +17,8 @@
 package org.sqlite.core;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.util.Arrays;
 
 import org.sqlite.BusyHandler;
 import org.sqlite.Function;
@@ -47,7 +47,8 @@ public final class NativeDB extends DB
 	/**
 	 * try to speed up the performance in coding 
 	 */
-	static final ThreadLocal<byte[]> byteBuffers = ThreadLocal.withInitial(() -> new byte[1 << 15]);
+	static final ThreadLocal<byte[]> byteBuffers;
+	static final ThreadLocal<char[]> charBuffers;
 
     static {
         if ("The Android Project".equals(System.getProperty("java.vm.vendor"))) {
@@ -65,6 +66,9 @@ public final class NativeDB extends DB
         } else {
         	stringEncoding = SQLITEJDBC_STRING_CODING.ARRAY;
         }
+        int sqliteBuffer = Integer.getInteger("sqlitejdbc.buffer_size", 1 << 15);
+        byteBuffers = ThreadLocal.withInitial(() -> new byte[sqliteBuffer]);
+	    charBuffers = ThreadLocal.withInitial(() -> new char[sqliteBuffer >> 1]);
     }
 
     public NativeDB(String url, String fileName, SQLiteConfig config)
@@ -490,36 +494,139 @@ public final class NativeDB extends DB
     		if (limit == 0) 
     			return "";
     		byte[] arr = byteBuffers.get();
-    		if (limit >= arr.length) {
+    		if (limit > arr.length) {
     			arr = new byte[limit];
     		}
-    		buf.get(arr, 0, limit);
-    		return new String(arr, 0, limit, StandardCharsets.UTF_8);
+            buf.get(arr, 0, limit);
+            return UTF8ToUTF16(charBuffers.get(), arr, limit);
+    		// return new String(arr, 0, limit, StandardCharsets.UTF_8);
     	}
     	if (object instanceof byte[]) {
-    		byte[] arr = (byte[]) object;
-    		if (arr.length == 0)
-    			return "";
-    		return new String(arr, StandardCharsets.UTF_8);
+            byte[] arr = (byte[]) object;
+            int limit = arr.length;
+    		if (limit == 0)
+                return "";
+            return UTF8ToUTF16(charBuffers.get(), arr, limit);
+    		// return new String(arr, StandardCharsets.UTF_8);
     	}
-		return null;
+		return object.toString();
     }
     
     Object toObject(String string) {
     	if (string == null)
     		return null;
     	switch (stringEncoding) {
-    	case ARRAY:
-    		return string.getBytes(StandardCharsets.UTF_8);
-    	case STRING_CESU8:
-    	case STRING_CUTF8:
-    	case STRING_JUTF8:
-    	case BUFFER:
-    	default:
-    		return string;
+            case ARRAY:
+            case BUFFER:
+            case STRING_CESU8:
+            case STRING_CUTF8:
+            case STRING_JUTF8:
+                return UTF16ToUTF8(byteBuffers.get(), string);
+                // return string.getBytes(StandardCharsets.UTF_8);
+            default:
+    		    return string;
 		}
     }
 
+	byte[] UTF16ToUTF8(byte[] buf, String src) {
+		int size = src.length(), sp = 0, limit = size * 4;
+		byte[] dst = limit < buf.length ? buf : new byte[limit];
+		for (int i = 0; i < size; i++) {
+			int uc = -1;
+			char w1 = src.charAt(i);
+			if (w1 < 0x80) {
+				uc = w1 & 0xFF;
+			} else if ((w1 < 0xD800) || (w1 > 0xDFFF)) {
+				uc = w1;
+			} else if ((w1 >= 0xD800) && (w1 <= 0xDBFF)) {
+				if (i < size - 1) {
+					char w2 = src.charAt(i+1);
+					if (w2 >= 0xDC00 && w2 <= 0xDFFF) {
+						uc = (((w1 & 0x3FF) << 10) | (w2 & 0x3FF)) + 0x10000;
+						i+=1;
+					}
+				}
+			}
+			if (uc < 0x80) {
+				dst[sp++] = (byte)(uc & 0xFF);
+			} else if (uc < 0x800) {
+				dst[sp++] = (byte)((((uc >> 6) & 0x1F) | 0xC0) & 0xFF);
+				dst[sp++] = (byte)((((uc >> 0) & 0x3F) | 0x80) & 0xFF);
+			} else if (uc < 0x10000) {
+				dst[sp++] = (byte)((((uc >>12) & 0x0F) | 0xE0) & 0xFF);
+				dst[sp++] = (byte)((((uc >> 6) & 0x3F) | 0x80) & 0xFF);
+				dst[sp++] = (byte)((((uc >> 0) & 0x3F) | 0x80) & 0xFF);
+			} else {
+				dst[sp++] = (byte)((((uc >>18) & 0x07) | 0xF0) & 0xFF);
+				dst[sp++] = (byte)((((uc >>12) & 0x3F) | 0x80) & 0xFF);
+				dst[sp++] = (byte)((((uc >> 6) & 0x3F) | 0x80) & 0xFF);
+				dst[sp++] = (byte)((((uc >> 0) & 0x3F) | 0x80) & 0xFF);
+			}
+		}    
+		return sp != dst.length 
+			? Arrays.copyOf(dst, sp)
+			: dst;
+	}
+
+	String UTF8ToUTF16(char[] buf, byte[] src, int size) {
+		int sp = 0, limit = size * 2;
+		char[] dst = limit < buf.length ? buf : new char[limit];
+		for (int i = 0; i < size; i++) {
+			int uc = -1;
+			int w1 = src[i] & 0xFF;
+			if (w1 <= 0x7F) {
+				uc = w1;
+			} else if ((w1 >= 0xC0) && (w1 <= 0xDF)) {
+				if (i < size - 1) {
+					int w2 = src[i+1] & 0xFF;
+					if ((w2 & 0xC0) == 0x80) {
+						uc = ((w1 & 0x1F) << 6) 
+							| ((w2 & 0x3F) << 0);
+						i+=1;
+					}
+				}
+			} else if ((w1 >= 0xE0) && (w1 <= 0xEF)) {
+				if (i < size - 2) {
+					int w2 = src[i+1] & 0xFF;
+					int w3 = src[i+2] & 0xFF;
+					if ((w2 & 0xC0) == 0x80 
+						&& (w3 & 0xC0) == 0x80) {
+						uc = ((w1 & 0x0F) << 12)
+							| ((w2 & 0x3F) << 6) 
+							| ((w3 & 0x3F) << 0);
+						i+=2;
+					}
+				}
+			} else if ((w1 >= 0xF0) && (w1 <= 0xF7)) {
+				if (i < size - 3) {
+					int w2 = src[i+1] & 0xFF;
+					int w3 = src[i+2] & 0xFF;
+					int w4 = src[i+3] & 0xFF;
+					if ((w2 & 0xC0) == 0x80 
+						&& (w3 & 0xC0) == 0x80
+						&& (w4 & 0xC0) == 0x80) {
+						uc = ((w1 & 0x07) << 18) 
+							| ((w2 & 0x3F) << 12) 
+							| ((w3 & 0x3F) << 6) 
+							| ((w4 & 0x3F) << 0);
+						i+=3;
+					}
+				}
+			}
+			if (uc == -1) {
+				return null;
+			}
+			if (uc < 0x10000) {
+				dst[sp++] = (char)(uc & 0xFFFF);
+			} else {
+				uc -= 0x10000;
+				dst[sp++] = (char)((((uc >>10)& 0x3FF) | 0xD800) & 0xFFFF);
+				dst[sp++] = (char)((((uc >> 0)& 0x3FF) | 0xDC00) & 0xFFFF);
+			}
+		}
+		
+		return new String(dst, 0, sp);
+	}
     /**
      * Provides metadata for table columns.
      * @returns For each column returns: <br/>

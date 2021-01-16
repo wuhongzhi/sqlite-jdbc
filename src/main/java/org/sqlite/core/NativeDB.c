@@ -135,19 +135,12 @@ inline static char* arrayToBytes(JNIEnv *env, const jarray array, jsize* size) {
     return ret;
 }
 
-inline static char* UTF16toUTF8(JNIEnv *env, const jchar* src, jsize size, jsize* out) {
+inline static jboolean UTF16toUTF8(JNIEnv *env, const jchar* src, char* dst, jsize size, jsize* out) {
     if (out) {
         *out = 0;
     }
 
-    jint sp = 0, sl = size * 4 + 1;
-    char* dst = malloc(sl);
-    if (!dst) {
-        throwex_outofmemory(env);
-        return NULL;
-    }
-    
-    int i;
+    jint sp = 0, i;
     for (i = 0; i < size; i++) {
         jint uc = -1;
         uint16_t w1 = src[i];
@@ -163,9 +156,7 @@ inline static char* UTF16toUTF8(JNIEnv *env, const jchar* src, jsize size, jsize
             }
         }
         if (uc == -1) {
-            free(dst);
-            throwex_msg(env, "Bad UTF-16 encoding!");
-            return NULL;
+            return JNI_TRUE;
         }
         if (uc < 0x80) {
             dst[sp++] = ((char)uc) & 0xFF;
@@ -188,21 +179,14 @@ inline static char* UTF16toUTF8(JNIEnv *env, const jchar* src, jsize size, jsize
         *out = sp;
     }
 
-    return dst;
+    return JNI_TRUE;
 }
 
-inline static jchar* UTF8toUTF16(JNIEnv *env, const char* src, jsize size, jsize* out) {
+inline static jboolean UTF8toUTF16(JNIEnv *env, const char* src, jchar* dst, jsize size, jsize* out) {
     if (out) {
         *out = 0;
     }
-    jint sp = 0, sl = size * sizeof(jchar) + 1;
-    jchar* dst = malloc(sl);
-    if (!dst) {
-        throwex_outofmemory(env);
-        return NULL;
-    }
-
-    int i;
+    jint sp = 0, i;
     for (i = 0; i < size; i++) {
         jint uc = -1;
         uint8_t w1 = src[i];
@@ -246,9 +230,7 @@ inline static jchar* UTF8toUTF16(JNIEnv *env, const char* src, jsize size, jsize
             }
         }
         if (uc == -1) {
-            free(dst);
-            throwex_msg(env, "Bad UTF-8 coding!");
-            return NULL;
+            return JNI_FALSE;
         }
         if (uc < 0x10000) {
             dst[sp++] = ((jchar)uc) & 0xFFFF;
@@ -263,7 +245,7 @@ inline static jchar* UTF8toUTF16(JNIEnv *env, const char* src, jsize size, jsize
         *out = sp;
     }
 
-    return dst;
+    return JNI_TRUE;
 }
 
 inline static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length, jint mode) {
@@ -271,14 +253,14 @@ inline static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length
         return NULL;
     }
 
-    //ByteBuffer
-    if (mode == BUFFER) {
-        return (*env)->NewDirectByteBuffer(env, (void*)bytes, length);
-    }
-
     //ByteArray
     if (mode == ARRAY) {
         return bytesToArray(env, bytes, length);
+    }
+
+    //ByteBuffer
+    if (mode == BUFFER) {
+        return (*env)->NewDirectByteBuffer(env, (void*)bytes, length);
     }
     
     //String
@@ -303,18 +285,21 @@ inline static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length
     }
 
     //STRING C
-    jchar* chars;
-    jsize size;
-    jstring ret;
-
-    chars = UTF8toUTF16(env, bytes, length, &size);
+    jchar* chars = malloc((length + 1) * sizeof(jchar));
     if (!chars) {
+        throwex_outofmemory(env);
         return NULL;
     }
 
-    ret = (*env)->NewString(env, chars, size);
-    free(chars);
+    jsize size;
+    if (!UTF8toUTF16(env, bytes, chars, length, &size)) {
+        free(chars);
+        throwex_msg(env, "Bad UTF-8 coding!");
+        return NULL;
+    }
 
+    jstring ret = (*env)->NewString(env, chars, size);
+    free(chars);
     return ret;
 }
 
@@ -326,17 +311,17 @@ inline static const char* objectToBytes(JNIEnv *env, jobject object, jsize* size
         return NULL;
     }
 
+    //ByteArray
+    if ((*env)->IsInstanceOf(env, object, arrclass)) {
+        return arrayToBytes(env, object, size);
+    }
+
     //ByteBuffer    
     if ((*env)->IsInstanceOf(env, object, bufclass)) {
         if (size) {
             *size = (*env)->GetDirectBufferCapacity(env, object) - 1;
         }
         return (*env)->GetDirectBufferAddress(env, object);
-    }
-
-    //ByteArray
-    if ((*env)->IsInstanceOf(env, object, arrclass)) {
-        return arrayToBytes(env, object, size);
     }
 
     //String
@@ -370,18 +355,23 @@ inline static const char* objectToBytes(JNIEnv *env, jobject object, jsize* size
     }
 
     //STRING C
-    const jchar* chars;
-    jsize length;
-    char* ret;
-
-    chars = (*env)->GetStringChars(env, object, JNI_FALSE);
-    if (!chars) {
+    jsize length = (*env)->GetStringLength(env, object);
+    char* ret = malloc(length * 4 + 1);
+    if (!ret) {
+        throwex_outofmemory(env);
         return NULL;
     }
-    length = (*env)->GetStringLength(env, object);
-    ret = UTF16toUTF8(env, chars, length, size);
-    (*env)->ReleaseStringChars(env, object, chars);
-    
+
+    const jchar* chars = (*env)->GetStringCritical(env, object, JNI_FALSE);
+    jboolean stat = UTF16toUTF8(env, chars, ret, length, size);
+    (*env)->ReleaseStringCritical(env, object, chars);
+
+    if (!stat) {
+        free(ret);
+        throwex_msg(env, "Bad UTF-16 encoding!");
+        return NULL;        
+    }
+
     return ret;
 }
 
