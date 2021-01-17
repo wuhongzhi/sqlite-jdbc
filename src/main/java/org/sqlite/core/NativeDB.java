@@ -549,11 +549,11 @@ public final class NativeDB extends DB
                 dst[sp++] = (byte)w1;
 			} else if (w1 < 0x800) {
                 dst[sp++] = (byte)(((w1 >> 6) & 0x1F) | 0xC0);
-                dst[sp++] = (byte)(((w1 >> 0) & 0x3F) | 0x80);
+                dst[sp++] = (byte)((w1 & 0x3F) | 0x80);
             } else if ((w1 < 0xD800) || (w1 > 0xDFFF)) {
                 dst[sp++] = (byte)(((w1 >>12) & 0x0F) | 0xE0);
                 dst[sp++] = (byte)(((w1 >> 6) & 0x3F) | 0x80);
-                dst[sp++] = (byte)(((w1 >> 0) & 0x3F) | 0x80);
+                dst[sp++] = (byte)((w1 & 0x3F) | 0x80);
             } else if ((w1 >= 0xD800) && (w1 <= 0xDBFF)) {
                 if (i + 1 == size) return null;
                 char w2 = src.charAt(i+1);
@@ -562,7 +562,7 @@ public final class NativeDB extends DB
                 dst[sp++] = (byte)(((uc >>18) & 0x07) | 0xF0);
                 dst[sp++] = (byte)(((uc >>12) & 0x3F) | 0x80);
                 dst[sp++] = (byte)(((uc >> 6) & 0x3F) | 0x80);
-                dst[sp++] = (byte)(((uc >> 0) & 0x3F) | 0x80);
+                dst[sp++] = (byte)((uc & 0x3F) | 0x80);
                 i+=1;
             } else {
                 return null;
@@ -584,14 +584,14 @@ public final class NativeDB extends DB
                 if (i + 1 == size)  return null;
                 char w2 = (char)(src[i+1] & 0xFF);
                 if ((w2 & 0xC0) != 0x80) return null;
-                dst[sp++] = (char)(((w1 & 0x1F) << 6) | ((w2 & 0x3F) << 0));
+                dst[sp++] = (char)(((w1 & 0x1F) << 6) | (w2 & 0x3F));
                 i+=1;
 			} else if ((w1 >= 0xE0) && (w1 <= 0xEF)) {
                 if (i + 2 == size)  return null;
                 char w2 = (char)(src[i+1] & 0xFF);
                 char w3 = (char)(src[i+2] & 0xFF);
                 if ((w2 & 0xC0) != 0x80 || (w3 & 0xC0) != 0x80) return null;
-                dst[sp++] = (char)(((w1 & 0x0F) << 12) | ((w2 & 0x3F) << 6) | ((w3 & 0x3F) << 0));
+                dst[sp++] = (char)(((w1 & 0x0F) << 12) | ((w2 & 0x3F) << 6) | (w3 & 0x3F));
                 i+=2;
 			} else if ((w1 >= 0xF0) && (w1 <= 0xF7)) {
                 if (i + 3 == size)  return null;
@@ -599,9 +599,9 @@ public final class NativeDB extends DB
                 char w3 = (char)(src[i+2] & 0xFF);
                 char w4 = (char)(src[i+3] & 0xFF);
                 if ((w2 & 0xC0) != 0x80 || (w3 & 0xC0) != 0x80 || (w4 & 0xC0) != 0x80) return null;
-                int uc = (((w1 & 0x07) << 18) | ((w2 & 0x3F) << 12) | ((w3 & 0x3F) << 6) | ((w4 & 0x3F) << 0)) - 0x10000;
-                dst[sp++] = (char)(((uc >>10)& 0x3FF) | 0xD800);
-                dst[sp++] = (char)(((uc >> 0)& 0x3FF) | 0xDC00);
+                int uc = (((w1 & 0x07) << 18) | ((w2 & 0x3F) << 12) | ((w3 & 0x3F) << 6) | (w4 & 0x3F)) - 0x10000;
+                dst[sp++] = (char)(((uc >> 10) & 0x3FF) | 0xD800);
+                dst[sp++] = (char)((uc & 0x3FF) | 0xDC00);
                 i+=3;
 			} else {
                 return null;

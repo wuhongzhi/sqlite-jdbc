@@ -187,14 +187,14 @@ inline static jboolean UTF8toUTF16(JNIEnv *env, const char* src, jchar* dst, jsi
             if (i + 1 == size) return JNI_FALSE;
             uint8_t w2 = src[i+1];
             if ((w2 & 0xC0) != 0x80) return JNI_FALSE;
-            dst[sp++] = (jchar)(((w1 & 0x1F) << 6) | ((w2 & 0x3F) << 0));
+            dst[sp++] = (jchar)(((w1 & 0x1F) << 6) | (w2 & 0x3F));
             i+=1;
         } else if ((w1 >= 0xE0) && (w1 <= 0xEF)) {
             if (i + 2 == size) return JNI_FALSE;
             uint8_t w2 = src[i+1];
             uint8_t w3 = src[i+2];
             if ((w2 & 0xC0) != 0x80 && (w3 & 0xC0) != 0x80) return JNI_FALSE;
-            dst[sp++] = (jchar)(((w1 & 0x0F) << 12) | ((w2 & 0x3F) << 6) | ((w3 & 0x3F) << 0));
+            dst[sp++] = (jchar)(((w1 & 0x0F) << 12) | ((w2 & 0x3F) << 6) | (w3 & 0x3F));
             i+=2;
         } else if ((w1 >= 0xF0) && (w1 <= 0xF7)) {
             if (i + 3 == size) return JNI_FALSE;
@@ -202,7 +202,7 @@ inline static jboolean UTF8toUTF16(JNIEnv *env, const char* src, jchar* dst, jsi
             uint8_t w3 = src[i+2];
             uint8_t w4 = src[i+3];
             if ((w2 & 0xC0) != 0x80 || (w3 & 0xC0) != 0x80 || (w4 & 0xC0) != 0x80) return JNI_FALSE;
-            jint uc = (((w1 & 0x07) << 18) | ((w2 & 0x3F) << 12) | ((w3 & 0x3F) << 6) | ((w4 & 0x3F) << 0)) - 0x10000;
+            jint uc = (((w1 & 0x07) << 18) | ((w2 & 0x3F) << 12) | ((w3 & 0x3F) << 6) | (w4 & 0x3F)) - 0x10000;
             dst[sp++] = (jchar)(((uc >>10) & 0x3FF) | 0xD800);
             dst[sp++] = (jchar)(((uc >> 0) & 0x3FF) | 0xDC00);
             i+=3;
