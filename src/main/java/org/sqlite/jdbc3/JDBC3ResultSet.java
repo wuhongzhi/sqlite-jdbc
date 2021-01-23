@@ -123,9 +123,7 @@ public abstract class JDBC3ResultSet extends CoreResultSet {
      */
     public void setFetchDirection(int d) throws SQLException {
         checkOpen();
-        // Only FORWARD_ONLY ResultSets exist in SQLite, so only FETCH_FORWARD is permitted
-        if (/*getType() == ResultSet.TYPE_FORWARD_ONLY &&*/
-                d != ResultSet.FETCH_FORWARD) {
+        if (d != ResultSet.FETCH_FORWARD) {
             throw new SQLException("only FETCH_FORWARD direction supported");
         }
     }
