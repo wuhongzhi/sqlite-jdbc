@@ -152,10 +152,10 @@ inline static jboolean UTF16toUTF8(JNIEnv *env, const jchar* src, char* dst, jsi
             dst[sp++] = ((w1 >>12) & 0x0F) | 0xE0;
             dst[sp++] = ((w1 >> 6) & 0x3F) | 0x80;
             dst[sp++] = ((w1 >> 0) & 0x3F) | 0x80;
-        } else if ((w1 >= 0xD800) && (w1 <= 0xDBFF)) {
-            if (i == size) return JNI_FALSE;
-            uint16_t w2 = src[i++];
-            if ((w2 < 0xDC00) || (w2 > 0xDFFF)) return JNI_FALSE;
+        } else if (w1 < 0xDC00) {
+            if (i + 1 == size) return JNI_FALSE;
+            uint16_t w2 = src[i+1];
+            if (w2 < 0xDC00 || w2 > 0xDFFF) return JNI_FALSE;
             jint uc = (((w1 & 0x3FF) << 10) | (w2 & 0x3FF)) + 0x10000;
             dst[sp++] = ((uc >>18) & 0x07) | 0xF0;
             dst[sp++] = ((uc >>12) & 0x3F) | 0x80;

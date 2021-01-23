@@ -514,7 +514,7 @@ public final class NativeDB extends DB
     		if (limit == 0)
                 return "";
             if (default_utf8) {
-                return new String(arr, StandardCharsets.UTF_8);
+                return new String(arr, 0, limit, StandardCharsets.UTF_8);
             }
             return UTF8ToUTF16(charBuffers.get(), arr, limit);
     	}
@@ -554,10 +554,10 @@ public final class NativeDB extends DB
                 dst[sp++] = (byte)(((w1 >>12) & 0x0F) | 0xE0);
                 dst[sp++] = (byte)(((w1 >> 6) & 0x3F) | 0x80);
                 dst[sp++] = (byte)((w1 & 0x3F) | 0x80);
-            } else if ((w1 >= 0xD800) && (w1 <= 0xDBFF)) {
-                if (i == size) return null;
-                char w2 = src.charAt(i++);
-                if ((w2 < 0xDC00) || (w2 > 0xDFFF)) return null;
+            } else if (w1 < 0xDC00) {
+                if (i + 1 == size) return null;
+                char w2 = src.charAt(i+1);
+                if (w2 < 0xDC00 || w2 > 0xDFFF) return null;
                 int uc = (((w1 & 0x3FF) << 10) | (w2 & 0x3FF)) + 0x10000;
                 dst[sp++] = (byte)(((uc >>18) & 0x07) | 0xF0);
                 dst[sp++] = (byte)(((uc >>12) & 0x3F) | 0x80);
