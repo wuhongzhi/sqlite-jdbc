@@ -72,8 +72,8 @@ public final class NativeDB extends DB
         }
         int sqliteBuffer = Integer.getInteger("sqlitejdbc.buffer_size", 1 << 15);
         byteBuffers = ThreadLocal.withInitial(() -> new byte[sqliteBuffer]);
-        charBuffers = ThreadLocal.withInitial(() -> new char[sqliteBuffer >> 1]);
         default_utf8 = Boolean.valueOf(System.getProperty("sqlitejdbc.default_utf8", "true"));
+        charBuffers = ThreadLocal.withInitial(() -> new char[sqliteBuffer >> 1]);
     }
 
     public NativeDB(String url, String fileName, SQLiteConfig config)
@@ -530,10 +530,10 @@ public final class NativeDB extends DB
                 if (default_utf8) {
                     return string.getBytes(StandardCharsets.UTF_8);
                 }
-                return UTF16ToUTF8(byteBuffers.get(), string);
             case STRING_CUTF8:
             case STRING_JUTF8:
             case STRING_CESU8:
+                return UTF16ToUTF8(byteBuffers.get(), string);
             default:
     		    return string;
 		}
@@ -542,9 +542,9 @@ public final class NativeDB extends DB
 	byte[] UTF16ToUTF8(byte[] buf, String src) {
         int size = src.length(), 
             sp = 0, limit = size * 4;
-		byte[] dst = limit < buf.length ? buf : new byte[limit];
-		for (int i = 0; i < size; i++) {
-            char w1 = src.charAt(i);
+        byte[] dst = limit < buf.length ? buf : new byte[limit];
+		for(int i = 0; i < size;) {
+            char w1 = src.charAt(i++);
 			if (w1 < 0x80) {
                 dst[sp++] = (byte)w1;
 			} else if (w1 < 0x800) {
@@ -555,15 +555,14 @@ public final class NativeDB extends DB
                 dst[sp++] = (byte)(((w1 >> 6) & 0x3F) | 0x80);
                 dst[sp++] = (byte)((w1 & 0x3F) | 0x80);
             } else if ((w1 >= 0xD800) && (w1 <= 0xDBFF)) {
-                if (i + 1 == size) return null;
-                char w2 = src.charAt(i+1);
-                if (w2 < 0xDC00 || w2 > 0xDFFF) return null;
+                if (i == size) return null;
+                char w2 = src.charAt(i++);
+                if ((w2 < 0xDC00) || (w2 > 0xDFFF)) return null;
                 int uc = (((w1 & 0x3FF) << 10) | (w2 & 0x3FF)) + 0x10000;
                 dst[sp++] = (byte)(((uc >>18) & 0x07) | 0xF0);
                 dst[sp++] = (byte)(((uc >>12) & 0x3F) | 0x80);
                 dst[sp++] = (byte)(((uc >> 6) & 0x3F) | 0x80);
                 dst[sp++] = (byte)((uc & 0x3F) | 0x80);
-                i+=1;
             } else {
                 return null;
             }
@@ -575,34 +574,37 @@ public final class NativeDB extends DB
 
 	String UTF8ToUTF16(char[] buf, byte[] src, int size) {
         int sp = 0, limit = size * 2;
-		char[] dst = limit < buf.length ? buf : new char[limit];
-		for (int i = 0; i < size; i++) {
-            char w1 = (char)(src[i] & 0xFF);
+        char[] dst = limit < buf.length ? buf : new char[limit];
+		for(int i = 0; i < size; ) {
+            char w1 = (char)(src[i++] & 0xFF);
 			if (w1 < 0x80) {
                 dst[sp++] = (char)w1;
-			} else if ((w1 >= 0xC0) && (w1 <= 0xDF)) {
-                if (i + 1 == size)  return null;
-                char w2 = (char)(src[i+1] & 0xFF);
+            } else if (w1 < 0xC0) {
+                return null;
+			} else if (w1 < 0xE0) {
+                if (i == size) return null;
+                char w2 = (char)(src[i++] & 0xFF);
                 if ((w2 & 0xC0) != 0x80) return null;
                 dst[sp++] = (char)(((w1 & 0x1F) << 6) | (w2 & 0x3F));
                 i+=1;
-			} else if ((w1 >= 0xE0) && (w1 <= 0xEF)) {
-                if (i + 2 == size)  return null;
-                char w2 = (char)(src[i+1] & 0xFF);
-                char w3 = (char)(src[i+2] & 0xFF);
-                if ((w2 & 0xC0) != 0x80 || (w3 & 0xC0) != 0x80) return null;
+			} else if (w1 < 0xF0) {
+                if (i + 1 == size)  return null;
+                char w2 = (char)(src[i++] & 0xFF),
+                     w3 = (char)(src[i++] & 0xFF);
+                if (((w2 & 0xC0) != 0x80) || ((w3 & 0xC0) != 0x80)) return null;
                 dst[sp++] = (char)(((w1 & 0x0F) << 12) | ((w2 & 0x3F) << 6) | (w3 & 0x3F));
-                i+=2;
-			} else if ((w1 >= 0xF0) && (w1 <= 0xF7)) {
-                if (i + 3 == size)  return null;
-                char w2 = (char)(src[i+1] & 0xFF);
-                char w3 = (char)(src[i+2] & 0xFF);
-                char w4 = (char)(src[i+3] & 0xFF);
-                if ((w2 & 0xC0) != 0x80 || (w3 & 0xC0) != 0x80 || (w4 & 0xC0) != 0x80) return null;
+			} else if (w1 < 0xF8) {
+                if (i + 2 == size)  return null;
+                char w2 = (char)(src[i++] & 0xFF),
+                     w3 = (char)(src[i++] & 0xFF),
+                     w4 = (char)(src[i++] & 0xFF);
+                if (((w2 & 0xC0) != 0x80)
+                    || ((w3 & 0xC0) != 0x80) 
+                    || ((w4 & 0xC0) != 0x80))
+                    return null;
                 int uc = (((w1 & 0x07) << 18) | ((w2 & 0x3F) << 12) | ((w3 & 0x3F) << 6) | (w4 & 0x3F)) - 0x10000;
                 dst[sp++] = (char)(((uc >> 10) & 0x3FF) | 0xD800);
                 dst[sp++] = (char)((uc & 0x3FF) | 0xDC00);
-                i+=3;
 			} else {
                 return null;
 			}
