@@ -38,21 +38,21 @@ typedef enum {
     ARRAY = 1, BUFFER, STRING_CUTF8, STRING_JUTF8, STRING_CESU8
 } SQLITEJDBC_STRING_CODING;
 
-inline static void * toref(jlong value)
+static void * toref(jlong value)
 {
     jvalue ret;
     ret.j = value;
     return (void *) ret.l;
 }
 
-inline static jlong fromref(void * value)
+static jlong fromref(void * value)
 {
     jvalue ret;
     ret.l = value;
     return ret.j;
 }
 
-inline static void throwex(JNIEnv *env, jobject this)
+static void throwex(JNIEnv *env, jobject this)
 {
     static jmethodID mth_throwex = 0;
 
@@ -62,7 +62,7 @@ inline static void throwex(JNIEnv *env, jobject this)
     (*env)->CallVoidMethod(env, this, mth_throwex);
 }
 
-inline static void throwex_errorcode(JNIEnv *env, jobject this, int errorCode)
+static void throwex_errorcode(JNIEnv *env, jobject this, int errorCode)
 {
     static jmethodID mth_throwex = 0;
 
@@ -72,7 +72,7 @@ inline static void throwex_errorcode(JNIEnv *env, jobject this, int errorCode)
     (*env)->CallVoidMethod(env, this, mth_throwex, (jint) errorCode);
 }
 
-inline static void throwex_msg(JNIEnv *env, const char *str)
+static void throwex_msg(JNIEnv *env, const char *str)
 {
     static jmethodID mth_throwexmsg = 0;
 
@@ -83,22 +83,22 @@ inline static void throwex_msg(JNIEnv *env, const char *str)
     (*env)->CallStaticVoidMethod(env, dbclass, mth_throwexmsg, msg);
 }
 
-inline static void throwex_outofmemory(JNIEnv *env)
+static void throwex_outofmemory(JNIEnv *env)
 {
     throwex_msg(env, "Out of memory");
 }
 
-inline static void throwex_stmt_finalized(JNIEnv *env)
+static void throwex_stmt_finalized(JNIEnv *env)
 {
     throwex_msg(env, "The prepared statement has been finalized");
 }
 
-inline static void throwex_db_closed(JNIEnv *env)
+static void throwex_db_closed(JNIEnv *env)
 {
     throwex_msg(env, "The database has been closed");
 }
 
-inline static jbyteArray bytesToArray(JNIEnv *env, const char* bytes, jsize length) {
+static jbyteArray bytesToArray(JNIEnv *env, const char* bytes, jsize length) {
     jbyteArray array;
 
     array = (*env)->NewByteArray(env, length);
@@ -112,7 +112,7 @@ inline static jbyteArray bytesToArray(JNIEnv *env, const char* bytes, jsize leng
     return array;
 }
 
-inline static char* arrayToBytes(JNIEnv *env, const jarray array, jsize* size) {
+static char* arrayToBytes(JNIEnv *env, const jarray array, jsize* size) {
     jsize length;
     char* ret = NULL;
     
@@ -135,32 +135,32 @@ inline static char* arrayToBytes(JNIEnv *env, const jarray array, jsize* size) {
     return ret;
 }
 
-inline static jboolean UTF16toUTF8(JNIEnv *env, const jchar* src, char* dst, jsize size, jsize* out) {
+static jboolean UTF16toUTF8(JNIEnv *env, const jchar* src, char* dst, jsize size, jsize* out) {
     if (out) {
         *out = 0;
     }
 
     jint sp, i;
-    for (sp = 0, i = 0; i < size;) {
+    for (sp = 0, i = 0; i < size; ) {
         uint16_t w1 = src[i++];
         if (w1 < 0x80) {
             dst[sp++] = w1 & 0xFF;
         } else if (w1 < 0x800) {
-            dst[sp++] = ((w1 >> 6) & 0x1F) | 0xC0;
-            dst[sp++] = ((w1 >> 0) & 0x3F) | 0x80;
+            dst[sp++] = ((w1 >> 6) & 0x1F) ^ 0xC0;
+            dst[sp++] = ((w1 >> 0) & 0x3F) ^ 0x80;
         } else if ((w1 < 0xD800) || (w1 > 0xDFFF)) {
-            dst[sp++] = ((w1 >>12) & 0x0F) | 0xE0;
-            dst[sp++] = ((w1 >> 6) & 0x3F) | 0x80;
-            dst[sp++] = ((w1 >> 0) & 0x3F) | 0x80;
+            dst[sp++] = ((w1 >>12) & 0x0F) ^ 0xE0;
+            dst[sp++] = ((w1 >> 6) & 0x3F) ^ 0x80;
+            dst[sp++] = ((w1 >> 0) & 0x3F) ^ 0x80;
         } else if (w1 < 0xDC00) {
-            if (i + 1 == size) return JNI_FALSE;
-            uint16_t w2 = src[i+1];
-            if (w2 < 0xDC00 || w2 > 0xDFFF) return JNI_FALSE;
-            jint uc = (((w1 & 0x3FF) << 10) | (w2 & 0x3FF)) + 0x10000;
-            dst[sp++] = ((uc >>18) & 0x07) | 0xF0;
-            dst[sp++] = ((uc >>12) & 0x3F) | 0x80;
-            dst[sp++] = ((uc >> 6) & 0x3F) | 0x80;
-            dst[sp++] = ((uc >> 0) & 0x3F) | 0x80;
+            if (i == size) return JNI_FALSE;
+            uint16_t w2 = src[i++];
+            // if (w2 < 0xDC00 || w2 > 0xDFFF) return JNI_FALSE;
+            jint uc = (((w1 & 0x3FF) << 10) ^ (w2 & 0x3FF)) + 0x10000;
+            dst[sp++] = ((uc >>18) & 0x07) ^ 0xF0;
+            dst[sp++] = ((uc >>12) & 0x3F) ^ 0x80;
+            dst[sp++] = ((uc >> 6) & 0x3F) ^ 0x80;
+            dst[sp++] = ((uc >> 0) & 0x3F) ^ 0x80;
         } else {
             return JNI_FALSE;
         }
@@ -173,44 +173,44 @@ inline static jboolean UTF16toUTF8(JNIEnv *env, const jchar* src, char* dst, jsi
     return JNI_TRUE;
 }
 
-inline static jboolean UTF8toUTF16(JNIEnv *env, const char* src, jchar* dst, jsize size, jsize* out) {
+static jboolean UTF8toUTF16(JNIEnv *env, const char* src, jchar* dst, jsize size, jsize* out) {
+    if (out) {
+        *out = 0;
+    }
     jint sp, i;
-    for(sp = 0, i = 0; i < size;) {
+    for (sp = 0, i = 0; i < size; ) {
         uint8_t w1 = src[i++];
         if (w1 < 0x80) {
             dst[sp++] = (jchar)w1;
-        } else if (w1 < 0xC0) {
-            return JNI_FALSE;
         } else if (w1 < 0xE0) {
-            if (i == size) return JNI_FALSE;
+            if ((w1 < 0xC0) || (i == size)) return JNI_FALSE;
             uint8_t w2 = src[i++];
-            if ((w2 & 0xC0) != 0x80)
-                return JNI_FALSE;
-            dst[sp++] = (jchar)(((w1 & 0x1F) << 6) | (w2 & 0x3F));
+            // if ((w2 & 0xC0) ^ 0x80) return JNI_FALSE;
+            dst[sp++] = (jchar)(((w1 & 0x1F) << 6) ^ (w2 & 0x3F));
         } else if (w1 < 0xF0) {
             if (i + 1 == size) return JNI_FALSE;
             uint8_t w2 = src[i++], w3 = src[i++];
-            if (((w2 & 0xC0) != 0x80) || ((w3 & 0xC0) != 0x80)) 
-                return JNI_FALSE;
-            dst[sp++] = (jchar)(((w1 & 0x0F) << 12) | ((w2 & 0x3F) << 6) | (w3 & 0x3F));
+            // if (((w2 & 0xC0) ^ 0x80) || ((w3 & 0xC0) ^ 0x80)) return JNI_FALSE;
+            dst[sp++] = (jchar)(((w1 & 0x0F) << 12) ^ ((w2 & 0x3F) << 6) ^ (w3 & 0x3F));
         } else if (w1 < 0xF8) {
             if (i + 2 == size) return JNI_FALSE;
             uint8_t w2 = src[i++], w3 = src[i++], w4 = src[i++];
-            if (((w2 & 0xC0) != 0x80) || ((w3 & 0xC0) != 0x80) || ((w4 & 0xC0) != 0x80))
-                return JNI_FALSE;
-            jint uc = (((w1 & 0x07) << 18) | ((w2 & 0x3F) << 12) | ((w3 & 0x3F) << 6) | (w4 & 0x3F)) - 0x10000;
-            dst[sp++] = (jchar)(((uc >>10) & 0x3FF) | 0xD800);
-            dst[sp++] = (jchar)((uc & 0x3FF) | 0xDC00);
+            // if (((w2 & 0xC0) ^ 0x80) || ((w3 & 0xC0) ^ 0x80) || ((w4 & 0xC0) ^ 0x80)) return JNI_FALSE;
+            jint uc = (((w1 & 0x07) << 18) ^ ((w2 & 0x3F) << 12) ^ ((w3 & 0x3F) << 6) ^ (w4 & 0x3F)) - 0x10000;
+            dst[sp++] = (jchar)(((uc >>10) & 0x3FF) ^ 0xD800);
+            dst[sp++] = (jchar)(((uc >> 0) & 0x3FF) ^ 0xDC00);
         } else {
             return JNI_FALSE;
         }
     }
-    *out = sp;
+    if (out) {
+        *out = sp;
+    }
 
     return JNI_TRUE;
 }
 
-inline static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length, jint mode) {
+static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length, jint mode) {
     if (!bytes) {
         return NULL;
     }
@@ -252,18 +252,20 @@ inline static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length
         throwex_outofmemory(env);
         return NULL;
     }
+
     jsize size;
     if (!UTF8toUTF16(env, bytes, chars, length, &size)) {
         free(chars);
         throwex_msg(env, "Bad UTF-8 coding!");
         return NULL;
     }
+
     jstring ret = (*env)->NewString(env, chars, size);
     free(chars);
     return ret;
 }
 
-inline static const char* objectToBytes(JNIEnv *env, jobject object, jsize* size, jint mode) {
+static const char* objectToBytes(JNIEnv *env, jobject object, jsize* size, jint mode) {
     if (size) {
         *size = 0;
     }
@@ -335,7 +337,7 @@ inline static const char* objectToBytes(JNIEnv *env, jobject object, jsize* size
     return ret;
 }
 
-inline static void freeBytes(JNIEnv *env, jobject object, const char* bytes, jint mode) {
+static void freeBytes(JNIEnv *env, jobject object, const char* bytes, jint mode) {
     if (!bytes) return;
     if (object) {
         if (mode == BUFFER) return;
@@ -347,7 +349,7 @@ inline static void freeBytes(JNIEnv *env, jobject object, const char* bytes, jin
     free((void*)bytes);
 }
 
-inline static sqlite3 * gethandle(JNIEnv *env, jobject this)
+static sqlite3 * gethandle(JNIEnv *env, jobject this)
 {
     static jfieldID pointer = 0;
     if (!pointer) pointer = (*env)->GetFieldID(env, dbclass, "pointer", "J");
@@ -355,7 +357,7 @@ inline static sqlite3 * gethandle(JNIEnv *env, jobject this)
     return (sqlite3 *)toref((*env)->GetLongField(env, this, pointer));
 }
 
-inline static void sethandle(JNIEnv *env, jobject this, sqlite3 * ref)
+static void sethandle(JNIEnv *env, jobject this, sqlite3 * ref)
 {
     static jfieldID pointer = 0;
     if (!pointer) pointer = (*env)->GetFieldID(env, dbclass, "pointer", "J");
@@ -604,43 +606,43 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
 
     strencoding = (*env)->CallStaticObjectMethod(env, clazz, method, utf8);
     if (!strencoding) return JNI_ERR;
-    strencoding = (*env)->NewGlobalRef(env ,strencoding);
+    strencoding = (*env)->NewWeakGlobalRef(env ,strencoding);
 
     strclass = (*env)->FindClass(env, "java/lang/String");
     if (!strclass) return JNI_ERR;
-    strclass = (*env)->NewGlobalRef(env, strclass);
+    strclass = (*env)->NewWeakGlobalRef(env, strclass);
 
     bufclass = (*env)->FindClass(env, "java/nio/ByteBuffer");
     if (!bufclass) return JNI_ERR;
-    bufclass = (*env)->NewGlobalRef(env, bufclass);
+    bufclass = (*env)->NewWeakGlobalRef(env, bufclass);
 
     arrclass = (*env)->FindClass(env, "[B");
     if (!arrclass) return JNI_ERR;
-    arrclass = (*env)->NewGlobalRef(env, arrclass);
+    arrclass = (*env)->NewWeakGlobalRef(env, arrclass);
 
     dbclass = (*env)->FindClass(env, "org/sqlite/core/NativeDB");
     if (!dbclass) return JNI_ERR;
-    dbclass = (*env)->NewGlobalRef(env, dbclass);
+    dbclass = (*env)->NewWeakGlobalRef(env, dbclass);
 
     fclass = (*env)->FindClass(env, "org/sqlite/Function");
     if (!fclass) return JNI_ERR;
-    fclass = (*env)->NewGlobalRef(env, fclass);
+    fclass = (*env)->NewWeakGlobalRef(env, fclass);
 
     aclass = (*env)->FindClass(env, "org/sqlite/Function$Aggregate");
     if (!aclass) return JNI_ERR;
-    aclass = (*env)->NewGlobalRef(env, aclass);
+    aclass = (*env)->NewWeakGlobalRef(env, aclass);
 
     wclass = (*env)->FindClass(env, "org/sqlite/Function$Window");
     if (!wclass) return JNI_ERR;
-    wclass = (*env)->NewGlobalRef(env, wclass);
+    wclass = (*env)->NewWeakGlobalRef(env, wclass);
 
     pclass = (*env)->FindClass(env, "org/sqlite/core/DB$ProgressObserver");
     if(!pclass) return JNI_ERR;
-    pclass = (*env)->NewGlobalRef(env, pclass);
+    pclass = (*env)->NewWeakGlobalRef(env, pclass);
 
     phandleclass = (*env)->FindClass(env, "org/sqlite/ProgressHandler");
     if(!phandleclass) return JNI_ERR;
-    phandleclass = (*env)->NewGlobalRef(env, phandleclass);
+    phandleclass = (*env)->NewWeakGlobalRef(env, phandleclass);
 
     return JNI_VERSION_1_2;
 }
@@ -652,17 +654,17 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
 
     if (JNI_OK != (*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_2))
         return;
-    if (strencoding) (*env)->DeleteGlobalRef(env ,strencoding);
-    if (arrclass) (*env)->DeleteGlobalRef(env, arrclass);
-    if (bufclass) (*env)->DeleteGlobalRef(env, bufclass);
-    if (strclass) (*env)->DeleteGlobalRef(env, strclass);
+    if (strencoding) (*env)->DeleteWeakGlobalRef(env ,strencoding);
+    if (arrclass) (*env)->DeleteWeakGlobalRef(env, arrclass);
+    if (bufclass) (*env)->DeleteWeakGlobalRef(env, bufclass);
+    if (strclass) (*env)->DeleteWeakGlobalRef(env, strclass);
 
-    if (dbclass) (*env)->DeleteGlobalRef(env, dbclass);
-    if (fclass) (*env)->DeleteGlobalRef(env, fclass);
-    if (aclass) (*env)->DeleteGlobalRef(env, aclass);
-    if (wclass) (*env)->DeleteGlobalRef(env, wclass);
-    if (pclass) (*env)->DeleteGlobalRef(env, pclass);
-    if (phandleclass) (*env)->DeleteGlobalRef(env, phandleclass);
+    if (dbclass) (*env)->DeleteWeakGlobalRef(env, dbclass);
+    if (fclass) (*env)->DeleteWeakGlobalRef(env, fclass);
+    if (aclass) (*env)->DeleteWeakGlobalRef(env, aclass);
+    if (wclass) (*env)->DeleteWeakGlobalRef(env, wclass);
+    if (pclass) (*env)->DeleteWeakGlobalRef(env, pclass);
+    if (phandleclass) (*env)->DeleteWeakGlobalRef(env, phandleclass);
 }
 
 // WRAPPERS for sqlite_* functions //////////////////////////////////
