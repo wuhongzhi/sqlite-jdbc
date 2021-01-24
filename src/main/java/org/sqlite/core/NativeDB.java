@@ -74,8 +74,6 @@ public final class NativeDB extends DB
         int sqliteBuffer = Integer.getInteger("sqlitejdbc.buffer_size", 1 << 15);
         byteBuffers = ThreadLocal.withInitial(() -> new byte[sqliteBuffer]);
         charBuffers = ThreadLocal.withInitial(() -> new char[sqliteBuffer]);
-
-        System.out.println(stringEncoding + "/" + default_utf8);
     }
 
     public NativeDB(String url, String fileName, SQLiteConfig config)
@@ -106,7 +104,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#_open(java.lang.String, int)
      */
     @Override
-    protected synchronized void _open(String file, int openFlags) throws SQLException {
+    protected void _open(String file, int openFlags) throws SQLException {
         _open0(toObject(file), openFlags, stringEncoding.value);
     }
 
@@ -122,11 +120,11 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#_exec(java.lang.String)
      */
     @Override
-    public synchronized int _exec(String sql) throws SQLException {
-        return _exec0(toObject(sql), stringEncoding.value);
+    public int _exec(String sql) throws SQLException {
+        return _exec0(pointer, toObject(sql), stringEncoding.value);
     }
 
-    native synchronized int _exec0(Object sql, int mode) throws SQLException;
+    native synchronized int _exec0(long pdb, Object sql, int mode) throws SQLException;
 
     /**
      * @see org.sqlite.core.DB#shared_cache(boolean)
@@ -162,7 +160,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#prepare(java.lang.String)
      */
     @Override
-    protected synchronized long prepare(String sql) throws SQLException {
+    protected long prepare(String sql) throws SQLException {
         return prepare0(toObject(sql), stringEncoding.value);
     }
 
@@ -172,7 +170,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#errmsg()
      */
     @Override
-    synchronized String errmsg() {
+    String errmsg() {
         return toString(errmsg0(stringEncoding.value));
     }
 
@@ -182,7 +180,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#libversion()
      */
     @Override
-    public synchronized String libversion() {
+    public String libversion() {
         return toString(libversion0(stringEncoding.value));
     }
 
@@ -192,13 +190,21 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#changes()
      */
     @Override
-    public native synchronized int changes();
+    public int changes() {
+        return changes0(pointer);
+    }
+
+    native synchronized int changes0(long pdb);
 
     /**
      * @see org.sqlite.core.DB#total_changes()
      */
     @Override
-    public native synchronized int total_changes();
+    public int total_changes() {
+        return total_changes0(pointer);
+    }
+
+    native synchronized int total_changes0(long pdb);
 
     /**
      * @see org.sqlite.core.DB#finalize(long)
@@ -246,7 +252,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#column_decltype(long, int)
      */
     @Override
-    public synchronized String column_decltype(long stmt, int col) {
+    public String column_decltype(long stmt, int col) {
         return toString(column_decltype0(stmt, col, stringEncoding.value));
     }
 
@@ -256,7 +262,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#column_table_name(long, int)
      */
     @Override
-    public synchronized String column_table_name(long stmt, int col) {
+    public String column_table_name(long stmt, int col) {
         return toString(column_table_name0(stmt, col, stringEncoding.value));
     }
 
@@ -266,7 +272,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#column_name(long, int)
      */
     @Override
-    public synchronized String column_name(long stmt, int col)
+    public String column_name(long stmt, int col)
     {
         return toString(column_name0(stmt, col, stringEncoding.value));
     }
@@ -277,17 +283,21 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#column_text(long, int)
      */
     @Override
-    public synchronized String column_text(long stmt, int col) {
-        return toString(column_text0(stmt, col, stringEncoding.value));
+    public String column_text(long stmt, int col) {
+        return toString(column_text0(pointer, stmt, col, stringEncoding.value));
     }
 
-    native synchronized Object column_text0(long stmt, int col, int mode);
+    native synchronized Object column_text0(long pdb, long stmt, int col, int mode);
 
     /**
      * @see org.sqlite.core.DB#column_blob(long, int)
      */
     @Override
-    public native synchronized byte[] column_blob(long stmt, int col);
+    public byte[] column_blob(long stmt, int col) {
+        return column_blob0(pointer, stmt, col);
+    }
+
+    native synchronized byte[] column_blob0(long pdb, long stmt, int col);
 
     /**
      * @see org.sqlite.core.DB#column_double(long, int)
@@ -335,7 +345,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#bind_text(long, int, java.lang.String)
      */
     @Override
-    synchronized int bind_text(long stmt, int pos, String v) {
+    int bind_text(long stmt, int pos, String v) {
         return bind_text0(stmt, pos, toObject(v), stringEncoding.value);
     }
 
@@ -357,7 +367,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#result_text(long, java.lang.String)
      */
     @Override
-    public synchronized void result_text(long context, String val) {
+    public void result_text(long context, String val) {
     	result_text0(context, toObject(val), stringEncoding.value);
     }
 
@@ -391,7 +401,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#result_error(long, java.lang.String)
      */
     @Override
-    public synchronized void result_error(long context, String err) {
+    public void result_error(long context, String err) {
     	result_error0(context, toObject(err), stringEncoding.value);
     }
 
@@ -401,7 +411,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#value_text(org.sqlite.Function, int)
      */
     @Override
-    public synchronized String value_text(Function f, int arg) {
+    public String value_text(Function f, int arg) {
         return toString(value_text0(f, arg, stringEncoding.value));
     }
 
@@ -441,7 +451,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#create_function(java.lang.String, org.sqlite.Function, int, int)
      */
     @Override
-    public synchronized int create_function(String name, Function func, int nArgs, int flags) {
+    public int create_function(String name, Function func, int nArgs, int flags) {
         return create_function0(toObject(name), func, nArgs, flags, stringEncoding.value);
     }
 
@@ -451,7 +461,7 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#destroy_function(java.lang.String, int)
      */
     @Override
-    public synchronized int destroy_function(String name, int nArgs) {
+    public int destroy_function(String name, int nArgs) {
         return destroy_function0(toObject(name), nArgs, stringEncoding.value);
     }
 
@@ -481,7 +491,7 @@ public final class NativeDB extends DB
      *      org.sqlite.core.DB.ProgressObserver)
      */
     @Override
-    public synchronized int restore(String dbName, String sourceFileName, ProgressObserver observer)
+    public int restore(String dbName, String sourceFileName, ProgressObserver observer)
             throws SQLException {
         return restore0(toObject(dbName), toObject(sourceFileName), observer, stringEncoding.value);
     }
@@ -617,7 +627,11 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#column_metadata(long)
      */
     @Override
-    native synchronized boolean[][] column_metadata(long stmt);
+    boolean[][] column_metadata(long stmt) {
+        return column_metadata0(pointer, stmt);
+    }
+
+    native synchronized boolean[][] column_metadata0(long pdb, long stmt);
 
     @Override
     native synchronized void set_commit_listener(boolean enabled);

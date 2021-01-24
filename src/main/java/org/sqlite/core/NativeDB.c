@@ -840,13 +840,13 @@ JNIEXPORT jlong JNICALL Java_org_sqlite_core_NativeDB_prepare0(
 
 
 JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB__1exec0(
-        JNIEnv *env, jobject this, jobject sql, jint mode)
+        JNIEnv *env, jobject this, jlong pdb, jobject sql, jint mode)
 {
     sqlite3* db;
     const char* sql_bytes;
     int status;
 
-    db = gethandle(env, this);
+    db = toref(pdb);
     if (!db)
     {
         throwex_errorcode(env, this, SQLITE_MISUSE);
@@ -896,10 +896,10 @@ JNIEXPORT jobject JNICALL Java_org_sqlite_core_NativeDB_libversion0(
     return bytesToObject(env, version, strlen(version), mode);
 }
 
-JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_changes(
-        JNIEnv *env, jobject this)
+JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_changes0(
+        JNIEnv *env, jobject this, jlong pdb)
 {
-    sqlite3 *db = gethandle(env, this);
+    sqlite3 *db = toref(pdb);
     if (!db)
     {
         throwex_db_closed(env);
@@ -909,10 +909,10 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_changes(
     return sqlite3_changes(db);
 }
 
-JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_total_1changes(
-        JNIEnv *env, jobject this)
+JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_total_1changes0(
+        JNIEnv *env, jobject this, jlong pdb)
 {
-    sqlite3 *db = gethandle(env, this);
+    sqlite3 *db = toref(pdb);
     if (!db)
     {
         throwex_db_closed(env);
@@ -1058,13 +1058,13 @@ JNIEXPORT jobject JNICALL Java_org_sqlite_core_NativeDB_column_1name0(
 }
 
 JNIEXPORT jobject JNICALL Java_org_sqlite_core_NativeDB_column_1text0(
-        JNIEnv *env, jobject this, jlong stmt, jint col, jint mode)
+        JNIEnv *env, jobject this, jlong pdb, jlong stmt, jint col, jint mode)
 {
     sqlite3 *db;
     const char *bytes;
     jsize size;
 
-    db = gethandle(env, this);
+    db = toref(pdb);
     if (!db)
     {
         throwex_db_closed(env);
@@ -1088,15 +1088,15 @@ JNIEXPORT jobject JNICALL Java_org_sqlite_core_NativeDB_column_1text0(
     return bytesToObject(env, bytes, size, mode);
 }
 
-JNIEXPORT jbyteArray JNICALL Java_org_sqlite_core_NativeDB_column_1blob(
-        JNIEnv *env, jobject this, jlong stmt, jint col)
+JNIEXPORT jbyteArray JNICALL Java_org_sqlite_core_NativeDB_column_1blob0(
+        JNIEnv *env, jobject this, jlong pdb, jlong stmt, jint col)
 {
     sqlite3 *db;
     int type;
     int length;
     const void *blob;
 
-    db = gethandle(env, this);
+    db = toref(pdb);
     if (!db)
     {
         throwex_db_closed(env);
@@ -1533,8 +1533,8 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_limit(JNIEnv *env, jobject 
 
 // COMPOUND FUNCTIONS ///////////////////////////////////////////////
 
-JNIEXPORT jobjectArray JNICALL Java_org_sqlite_core_NativeDB_column_1metadata(
-        JNIEnv *env, jobject this, jlong stmt)
+JNIEXPORT jobjectArray JNICALL Java_org_sqlite_core_NativeDB_column_1metadata0(
+        JNIEnv *env, jobject this, jlong pdb, jlong stmt)
 {
     const char *zTableName, *zColumnName;
     int pNotNull, pPrimaryKey, pAutoinc, i, colCount;
@@ -1544,7 +1544,7 @@ JNIEXPORT jobjectArray JNICALL Java_org_sqlite_core_NativeDB_column_1metadata(
     sqlite3 *db;
     sqlite3_stmt *dbstmt;
 
-    db = gethandle(env, this);
+    db = toref(pdb);
     if (!db)
     {
         throwex_db_closed(env);

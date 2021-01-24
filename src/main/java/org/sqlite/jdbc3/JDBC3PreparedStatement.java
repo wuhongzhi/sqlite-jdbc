@@ -19,6 +19,7 @@ import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.Arrays;
 import java.util.Calendar;
 
 import org.sqlite.SQLiteConnection;
@@ -109,11 +110,9 @@ public abstract class JDBC3PreparedStatement extends CorePreparedStatement {
             batch = new Object[paramCount];
         }
         if (batchPos + paramCount > batch.length) {
-            Object[] nb = new Object[batch.length * 2];
-            System.arraycopy(batch, 0, nb, 0, batch.length);
-            batch = nb;
+            batch = Arrays.copyOf(batch, batch.length << 1);
         }
-        System.arraycopy(batch, batchPos - paramCount, batch, batchPos, paramCount);
+        //System.arraycopy(batch, batchPos - paramCount, batch, batchPos, paramCount);
     }
 
     // ParameterMetaData FUNCTIONS //////////////////////////////////
