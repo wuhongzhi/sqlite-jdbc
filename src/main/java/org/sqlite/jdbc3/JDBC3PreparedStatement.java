@@ -49,6 +49,10 @@ public abstract class JDBC3PreparedStatement extends CorePreparedStatement {
         checkOpen();
         rs.close();
         conn.getDatabase().reset(pointer);
+        
+        if (batchQueryCount != 0) {
+            throw new SQLException("Query is in batch mode");
+        }
 
         boolean success = false;
         try {
@@ -68,6 +72,9 @@ public abstract class JDBC3PreparedStatement extends CorePreparedStatement {
 
         if (columnCount == 0) {
             throw new SQLException("Query does not return results");
+        }
+        if (batchQueryCount != 0) {
+            throw new SQLException("Query is in batch mode");
         }
 
         rs.close();
@@ -91,6 +98,9 @@ public abstract class JDBC3PreparedStatement extends CorePreparedStatement {
 
         if (columnCount != 0) {
             throw new SQLException("Query returns results");
+        }
+        if (batchQueryCount != 0) {
+            throw new SQLException("Query is in batch mode");
         }
 
         rs.close();

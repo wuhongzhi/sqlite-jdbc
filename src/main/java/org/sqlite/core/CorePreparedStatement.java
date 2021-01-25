@@ -61,7 +61,7 @@ public abstract class CorePreparedStatement extends JDBC4Statement
         }
 
         try {
-            return conn.getDatabase().executeBatch(pointer, batchQueryCount, batch, conn.getAutoCommit());
+            return conn.getDatabase().executeBatch(pointer, batchQueryCount, paramCount, batch, conn.getAutoCommit());
         }
         finally {
             clearBatch();

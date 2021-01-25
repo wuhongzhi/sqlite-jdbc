@@ -785,12 +785,12 @@ public abstract class DB implements Codes
      *         commands execute successfully;
      * @throws SQLException
      */
-    final synchronized int[] executeBatch(long stmt, int count, Object[] vals, boolean autoCommit) throws SQLException {
+    final synchronized int[] executeBatch(long stmt, int count, int params, Object[] vals, boolean autoCommit) throws SQLException {
         if (count < 1) {
             throw new SQLException("count (" + count + ") < 1");
         }
 
-        final int params = bind_parameter_count(stmt);
+        // final int params = bind_parameter_count(stmt);
 
         int rc;
         int[] changes = new int[count];
@@ -834,13 +834,13 @@ public abstract class DB implements Codes
      */
     public final synchronized boolean execute(CoreStatement stmt, Object[] vals) throws SQLException {
         if (vals != null) {
-            final int params = bind_parameter_count(stmt.pointer);
-            if (params > vals.length) {
-                throw new SQLException("assertion failure: param count (" + params + ") > value count (" + vals.length
-                        + ")");
-            }
+            // final int params = bind_parameter_count(stmt.pointer);
+            // if (params > vals.length) {
+            //     throw new SQLException("assertion failure: param count (" + params + ") > value count (" + vals.length
+            //             + ")");
+            // }
 
-            for (int i = 0; i < params; i++) {
+            for (int i = 0, ii = vals.length; i< ii; i++) {
                 int rc = sqlbind(stmt.pointer, i, vals[i]);
                 if (rc != SQLITE_OK) {
                     throwex(rc);
