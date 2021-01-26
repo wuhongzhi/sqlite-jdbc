@@ -116,8 +116,8 @@ static char* arrayToBytes(JNIEnv *env, const jarray array, jsize* size) {
     jsize length;
     char* ret = NULL;
     
-    length = (*env)->GetArrayLength(env, array);
-    ret = malloc(length + 1);    
+    length = (*env)->GetArrayLength(env, array);    
+    ret = sqlite3_malloc(length + 1);
     if (!ret) {
         throwex_outofmemory(env);
         return NULL;
@@ -247,7 +247,7 @@ static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length, jint 
     }
 
     //STRING C
-    jchar* chars = malloc(length * sizeof(jchar));
+    jchar* chars = sqlite3_malloc(length * sizeof(jchar));
     if (!chars) {
         throwex_outofmemory(env);
         return NULL;
@@ -255,13 +255,13 @@ static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length, jint 
 
     jsize size;
     if (!UTF8toUTF16(env, bytes, chars, length, &size)) {
-        free(chars);
+        sqlite3_free(chars);
         throwex_msg(env, "Bad UTF-8 coding!");
         return NULL;
     }
 
     jstring ret = (*env)->NewString(env, chars, size);
-    free(chars);
+    sqlite3_free(chars);
     return ret;
 }
 
@@ -318,7 +318,7 @@ static const char* objectToBytes(JNIEnv *env, jobject object, jsize* size, jint 
 
     //STRING C
     jsize length = (*env)->GetStringLength(env, object);
-    char* ret = malloc(length * 4 + 1);
+    char* ret = sqlite3_malloc(length * 4 + 1);
     if (!ret) {
         throwex_outofmemory(env);
         return NULL;
@@ -329,7 +329,7 @@ static const char* objectToBytes(JNIEnv *env, jobject object, jsize* size, jint 
     (*env)->ReleaseStringCritical(env, object, chars);
 
     if (!stat) {
-        free(ret);
+        sqlite3_free(ret);
         throwex_msg(env, "Bad UTF-16 encoding!");
         return NULL;        
     }
@@ -346,7 +346,7 @@ static void freeBytes(JNIEnv *env, jobject object, const char* bytes, jint mode)
             return;
         }
     }
-    free((void*)bytes);
+    sqlite3_free((void*)bytes);
 }
 
 static sqlite3 * gethandle(JNIEnv *env, jobject this)
@@ -1420,7 +1420,7 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_create_1function0(
     int isAgg = 0, isWindow = 0;
 
     static jfieldID udfdatalist = 0;
-    struct UDFData *udf = malloc(sizeof(struct UDFData));
+    struct UDFData *udf = sqlite3_malloc(sizeof(struct UDFData));
 
     if (!udf) { throwex_outofmemory(env); return 0; }
 
@@ -1499,7 +1499,7 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_destroy_1function0(
 JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_free_1functions(
         JNIEnv *env, jobject this)
 {
-    // clean up all the malloc()ed UDFData instances using the
+    // clean up all the sqlite3_malloc()ed UDFData instances using the
     // linked list stored in DB.udfdatalist
     jfieldID udfdatalist;
     struct UDFData *udf, *udfpass;
@@ -1511,7 +1511,7 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_free_1functions(
     while (udf) {
         udfpass = udf->next;
         (*env)->DeleteGlobalRef(env, udf->func);
-        free(udf);
+        sqlite3_free(udf);
         udf = udfpass;
     }
 }
@@ -1564,7 +1564,7 @@ JNIEXPORT jobjectArray JNICALL Java_org_sqlite_core_NativeDB_column_1metadata0(
         env, colCount, (*env)->FindClass(env, "[Z"), NULL) ;
     if (!array) { throwex_outofmemory(env); return 0; }
 
-    colDataRaw = (jboolean*)malloc(3 * sizeof(jboolean));
+    colDataRaw = (jboolean*)sqlite3_malloc(3 * sizeof(jboolean));
     if (!colDataRaw) { throwex_outofmemory(env); return 0; }
 
     for (i = 0; i < colCount; i++) {
@@ -1596,7 +1596,7 @@ JNIEXPORT jobjectArray JNICALL Java_org_sqlite_core_NativeDB_column_1metadata0(
         (*env)->SetObjectArrayElement(env, array, i, colData);
     }
 
-    free(colDataRaw);
+    sqlite3_free(colDataRaw);
 
     return array;
 }
