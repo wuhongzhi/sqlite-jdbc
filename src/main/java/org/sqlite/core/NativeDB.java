@@ -86,13 +86,27 @@ public final class NativeDB extends DB
      * Loads the SQLite interface backend.
      * @return True if the SQLite JDBC driver is successfully loaded; false otherwise.
      */
-    public static boolean load() throws Exception {
+    public synchronized static boolean load() throws Exception {
         if (isLoaded)
             return loadSucceeded == true;
 
         loadSucceeded = SQLiteJDBCLoader.initialize();
         isLoaded = true;
         return loadSucceeded;
+    }
+
+    NativeDB checkDb() throws SQLException {
+        if (pointer == 0) {
+            throwex("The database has been closed");
+        }
+        return this;
+    }
+
+    static long checkStatement(long stmt) throws SQLException {
+        if (stmt == 0) {
+            throwex("The prepared statement has been finalized");
+        }
+        return stmt;
     }
 
     /** linked list of all instanced UDFDatas */
@@ -104,77 +118,104 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#_open(java.lang.String, int)
      */
     @Override
-    protected void _open(String file, int openFlags) throws SQLException {
-        _open0(toObject(file), openFlags, stringEncoding.value);
+    protected synchronized void _open(String file, int openFlags) throws SQLException {
+        if (pointer != 0) throwex("DB already open");
+        _open0(this, toObject(file), openFlags, stringEncoding.value);
     }
 
-    native synchronized void _open0(Object file, int openFlags, int mode) throws SQLException;
+    static native void _open0(NativeDB db, Object file, int openFlags, int mode) throws SQLException;
 
     /**
      * @see org.sqlite.core.DB#_close()
      */
     @Override
-    protected native synchronized void _close() throws SQLException;
+    protected synchronized void _close() throws SQLException {
+        if (pointer != 0) {
+            _close0(this);
+        }
+    }
+
+    static native void _close0(NativeDB db) throws SQLException;
 
     /**
      * @see org.sqlite.core.DB#_exec(java.lang.String)
      */
     @Override
-    public int _exec(String sql) throws SQLException {
-        return _exec0(pointer, toObject(sql), stringEncoding.value);
+    public synchronized int _exec(String sql) throws SQLException {
+        return _exec0(checkDb(), toObject(sql), stringEncoding.value);
     }
 
-    native synchronized int _exec0(long pdb, Object sql, int mode) throws SQLException;
+    static native int _exec0(NativeDB db, Object sql, int mode) throws SQLException;
 
     /**
      * @see org.sqlite.core.DB#shared_cache(boolean)
      */
     @Override
-    public native synchronized int shared_cache(boolean enable);
+    public synchronized int shared_cache(boolean enable) throws SQLException {
+        return shared_cache0(checkDb(), enable);
+    }
+
+    static native int shared_cache0(NativeDB db, boolean enable);
 
     /**
      * @see org.sqlite.core.DB#enable_load_extension(boolean)
      */
     @Override
-    public native synchronized int enable_load_extension(boolean enable);
+    public synchronized int enable_load_extension(boolean enable) throws SQLException {
+        return enable_load_extension0(checkDb(), enable);
+    }
+
+    static native int enable_load_extension0(NativeDB db, boolean enable);
 
     /**
      * @see org.sqlite.core.DB#interrupt()
      */
     @Override
-    public native void interrupt();
+    public synchronized void interrupt() throws SQLException {
+        interrupt0(checkDb());
+    }
+
+    static native void interrupt0(NativeDB db);
 
     /**
      * @see org.sqlite.core.DB#busy_timeout(int)
      */
     @Override
-    public native synchronized void busy_timeout(int ms);
+    public synchronized void busy_timeout(int ms) throws SQLException {
+        busy_timeout0(checkDb(), ms);
+    }
+
+    static native void busy_timeout0(NativeDB db, int ms);
     
     /**
      * @see org.sqlite.core.DB#busy_handler(BusyHandler)
      */
     @Override
-    public native synchronized void busy_handler(BusyHandler busyHandler);
+    public synchronized void busy_handler(BusyHandler busyHandler) throws SQLException {
+        busy_handler0(checkDb(), busyHandler);
+    }
+
+    static native void busy_handler0(NativeDB db, BusyHandler busyHandler);
 
     /**
      * @see org.sqlite.core.DB#prepare(java.lang.String)
      */
     @Override
-    protected long prepare(String sql) throws SQLException {
-        return prepare0(toObject(sql), stringEncoding.value);
+    protected synchronized long prepare(String sql) throws SQLException {
+        return prepare0(checkDb(), toObject(sql), stringEncoding.value);
     }
 
-    native synchronized long prepare0(Object sql, int mode) throws SQLException;
+    static native long prepare0(NativeDB db, Object sql, int mode) throws SQLException;
 
     /**
      * @see org.sqlite.core.DB#errmsg()
      */
     @Override
-    String errmsg() {
-        return toString(errmsg0(stringEncoding.value));
+    synchronized String errmsg() throws SQLException {
+        return toString(errmsg0(checkDb(), stringEncoding.value));
     }
 
-    native synchronized Object errmsg0(int mode);
+    static native Object errmsg0(NativeDB db, int mode);
 
     /**
      * @see org.sqlite.core.DB#libversion()
@@ -184,322 +225,430 @@ public final class NativeDB extends DB
         return toString(libversion0(stringEncoding.value));
     }
 
-    native Object libversion0(int mode);
+    static native Object libversion0(int mode);
 
     /**
      * @see org.sqlite.core.DB#changes()
      */
     @Override
-    public int changes() {
-        return changes0(pointer);
+    public synchronized int changes() throws SQLException {
+        return changes0(checkDb());
     }
 
-    native synchronized int changes0(long pdb);
+    static native int changes0(NativeDB db);
 
     /**
      * @see org.sqlite.core.DB#total_changes()
      */
     @Override
-    public int total_changes() {
-        return total_changes0(pointer);
+    public synchronized int total_changes() throws SQLException {
+        return total_changes0(checkDb());
     }
 
-    native synchronized int total_changes0(long pdb);
+    static native int total_changes0(NativeDB db);
 
     /**
      * @see org.sqlite.core.DB#finalize(long)
      */
     @Override
-    protected native synchronized int finalize(long stmt);
+    protected synchronized int finalize(long stmt) throws SQLException {
+        return finalize0(checkDb(), checkStatement(stmt));
+    }
+
+    static native int finalize0(NativeDB db, long stmt);
 
     /**
      * @see org.sqlite.core.DB#step(long)
      */
     @Override
-    public native synchronized int step(long stmt);
+    public synchronized int step(long stmt) throws SQLException {
+        return step0(checkDb(), checkStatement(stmt));
+    }
+
+    static native int step0(NativeDB db, long stmt);
 
     /**
      * @see org.sqlite.core.DB#reset(long)
      */
     @Override
-    public native synchronized int reset(long stmt);
+    public synchronized int reset(long stmt) throws SQLException {
+        return reset0(checkDb(), checkStatement(stmt));
+    }
+
+    static native int reset0(NativeDB db, long stmt);
 
     /**
      * @see org.sqlite.core.DB#clear_bindings(long)
      */
     @Override
-    public native synchronized int clear_bindings(long stmt);
+    public synchronized int clear_bindings(long stmt) throws SQLException {
+        return clear_bindings0(checkDb(), checkStatement(stmt));
+    }
+
+    static native int clear_bindings0(NativeDB db, long stmt);
 
     /**
      * @see org.sqlite.core.DB#bind_parameter_count(long)
      */
     @Override
-    native synchronized int bind_parameter_count(long stmt);
+    synchronized int bind_parameter_count(long stmt) throws SQLException {
+        return bind_parameter_count0(checkDb(), checkStatement(stmt));
+    }
+
+    static native int bind_parameter_count0(NativeDB db, long stmt);
 
     /**
      * @see org.sqlite.core.DB#column_count(long)
      */
     @Override
-    public native synchronized int column_count(long stmt);
+    public synchronized int column_count(long stmt) throws SQLException {
+        return column_count0(checkDb(), checkStatement(stmt));
+    }
+
+    static native int column_count0(NativeDB db, long stmt);
 
     /**
      * @see org.sqlite.core.DB#column_type(long, int)
      */
     @Override
-    public native synchronized int column_type(long stmt, int col);
+    public synchronized int column_type(long stmt, int col) throws SQLException {
+        return column_type0(checkDb(), checkStatement(stmt), col);
+    }
+
+    static native int column_type0(NativeDB db, long stmt, int col);
 
     /**
      * @see org.sqlite.core.DB#column_decltype(long, int)
      */
     @Override
-    public String column_decltype(long stmt, int col) {
-        return toString(column_decltype0(stmt, col, stringEncoding.value));
+    public synchronized String column_decltype(long stmt, int col) throws SQLException {
+        return toString(column_decltype0(checkDb(), checkStatement(stmt), col, stringEncoding.value));
     }
 
-    native synchronized Object column_decltype0(long stmt, int col, int mode);
+    static native Object column_decltype0(NativeDB db, long stmt, int col, int mode);
 
     /**
      * @see org.sqlite.core.DB#column_table_name(long, int)
      */
     @Override
-    public String column_table_name(long stmt, int col) {
-        return toString(column_table_name0(stmt, col, stringEncoding.value));
+    public synchronized String column_table_name(long stmt, int col) throws SQLException {
+        return toString(column_table_name0(checkDb(), checkStatement(stmt), col, stringEncoding.value));
     }
 
-    native synchronized Object column_table_name0(long stmt, int col, int mode);
+    static native Object column_table_name0(NativeDB db, long stmt, int col, int mode);
 
     /**
      * @see org.sqlite.core.DB#column_name(long, int)
      */
     @Override
-    public String column_name(long stmt, int col)
-    {
-        return toString(column_name0(stmt, col, stringEncoding.value));
+    public synchronized String column_name(long stmt, int col) throws SQLException {
+        return toString(column_name0(checkDb(), checkStatement(stmt), col, stringEncoding.value));
     }
 
-    native synchronized Object column_name0(long stmt, int col, int mode);
+    static native Object column_name0(NativeDB db, long stmt, int col, int mode);
 
     /**
      * @see org.sqlite.core.DB#column_text(long, int)
      */
     @Override
-    public String column_text(long stmt, int col) {
-        return toString(column_text0(pointer, stmt, col, stringEncoding.value));
+    public synchronized String column_text(long stmt, int col) throws SQLException {
+        return toString(column_text0(checkDb(), checkStatement(stmt), col, stringEncoding.value));
     }
 
-    native synchronized Object column_text0(long pdb, long stmt, int col, int mode);
+    static native Object column_text0(NativeDB db, long stmt, int col, int mode);
 
     /**
      * @see org.sqlite.core.DB#column_blob(long, int)
      */
     @Override
-    public byte[] column_blob(long stmt, int col) {
-        return column_blob0(pointer, stmt, col);
+    public synchronized byte[] column_blob(long stmt, int col) throws SQLException {
+        return column_blob0(checkDb(), checkStatement(stmt), col);
     }
 
-    native synchronized byte[] column_blob0(long pdb, long stmt, int col);
+    static native byte[] column_blob0(NativeDB db, long stmt, int col);
 
     /**
      * @see org.sqlite.core.DB#column_double(long, int)
      */
     @Override
-    public native synchronized double column_double(long stmt, int col);
+    public synchronized double column_double(long stmt, int col) throws SQLException {
+        return column_double0(checkDb(), checkStatement(stmt), col);
+    }
+
+    static native double column_double0(NativeDB db, long stmt, int col);
 
     /**
      * @see org.sqlite.core.DB#column_long(long, int)
      */
     @Override
-    public native synchronized long column_long(long stmt, int col);
+    public synchronized long column_long(long stmt, int col) throws SQLException {
+        return column_long0(checkDb(), checkStatement(stmt), col);
+    }
+
+    static native long column_long0(NativeDB db, long stmt, int col);
 
     /**
      * @see org.sqlite.core.DB#column_int(long, int)
      */
     @Override
-    public native synchronized int column_int(long stmt, int col);
+    public synchronized int column_int(long stmt, int col) throws SQLException {
+        return column_int0(checkDb(), checkStatement(stmt), col);
+    }
+
+    static native int column_int0(NativeDB db, long stmt, int col);
 
     /**
      * @see org.sqlite.core.DB#bind_null(long, int)
      */
     @Override
-    native synchronized int bind_null(long stmt, int pos);
+    synchronized int bind_null(long stmt, int pos) throws SQLException {
+        return bind_null0(checkDb(), checkStatement(stmt), pos);
+    }
+
+    static native int bind_null0(NativeDB db, long stmt, int pos);
 
     /**
      * @see org.sqlite.core.DB#bind_int(long, int, int)
      */
     @Override
-    native synchronized int bind_int(long stmt, int pos, int v);
+    synchronized int bind_int(long stmt, int pos, int v) throws SQLException {
+        return bind_int0(checkDb(), checkStatement(stmt), pos, v);
+    }
+    
+    static native int bind_int0(NativeDB db, long stmt, int pos, int v);
 
     /**
      * @see org.sqlite.core.DB#bind_long(long, int, long)
      */
     @Override
-    native synchronized int bind_long(long stmt, int pos, long v);
+    synchronized int bind_long(long stmt, int pos, long v) throws SQLException {
+        return bind_long0(checkDb(), checkStatement(stmt), pos, v);
+    }
+
+    static native int bind_long0(NativeDB db, long stmt, int pos, long v);
 
     /**
      * @see org.sqlite.core.DB#bind_double(long, int, double)
      */
     @Override
-    native synchronized int bind_double(long stmt, int pos, double v);
+    synchronized int bind_double(long stmt, int pos, double v) throws SQLException {
+        return bind_double0(checkDb(), checkStatement(stmt), pos, v);
+    }
+
+    static native int bind_double0(NativeDB db, long stmt, int pos, double v);
 
     /**
      * @see org.sqlite.core.DB#bind_text(long, int, java.lang.String)
      */
     @Override
-    int bind_text(long stmt, int pos, String v) {
-        return bind_text0(stmt, pos, toObject(v), stringEncoding.value);
+    synchronized int bind_text(long stmt, int pos, String v) throws SQLException {
+        return bind_text0(checkDb(), checkStatement(stmt), pos, toObject(v), stringEncoding.value);
     }
 
-    native synchronized int bind_text0(long stmt, int pos, Object v, int mode);
+    static native int bind_text0(NativeDB db, long stmt, int pos, Object v, int mode);
 
     /**
      * @see org.sqlite.core.DB#bind_blob(long, int, byte[])
      */
     @Override
-    native synchronized int bind_blob(long stmt, int pos, byte[] v);
+    synchronized int bind_blob(long stmt, int pos, byte[] v) throws SQLException {
+        return bind_blob0(checkDb(), checkStatement(stmt), pos, v);
+    }
+    
+    static native int bind_blob0(NativeDB db, long stmt, int pos, byte[] v);
 
     /**
      * @see org.sqlite.core.DB#result_null(long)
      */
     @Override
-    public native synchronized void result_null(long context);
+    public synchronized void result_null(long context) throws SQLException {
+        result_null0(checkDb(), context);
+    }
+
+    static native void result_null0(NativeDB db, long context);
 
     /**
      * @see org.sqlite.core.DB#result_text(long, java.lang.String)
      */
     @Override
-    public void result_text(long context, String val) {
-    	result_text0(context, toObject(val), stringEncoding.value);
+    public synchronized void result_text(long context, String val) throws SQLException {
+    	result_text0(checkDb(), context, toObject(val), stringEncoding.value);
     }
 
-    native synchronized void result_text0(long context, Object val, int mode);
+    static native void result_text0(NativeDB db, long context, Object val, int mode);
 
     /**
      * @see org.sqlite.core.DB#result_blob(long, byte[])
      */
     @Override
-    public native synchronized void result_blob(long context, byte[] val);
+    public synchronized void result_blob(long context, byte[] val) throws SQLException {
+        result_blob0(checkDb(), context, val);
+    }
+    
+    static native void result_blob0(NativeDB db, long context, byte[] val);
 
     /**
      * @see org.sqlite.core.DB#result_double(long, double)
      */
     @Override
-    public native synchronized void result_double(long context, double val);
+    public synchronized void result_double(long context, double val) throws SQLException {
+        result_double0(checkDb(), context, val);
+    }
+
+    static native void result_double0(NativeDB db, long context, double val);
 
     /**
      * @see org.sqlite.core.DB#result_long(long, long)
      */
     @Override
-    public native synchronized void result_long(long context, long val);
+    public synchronized void result_long(long context, long val) throws SQLException {
+        result_long0(checkDb(), context, val);
+    }
+
+    static native void result_long0(NativeDB db, long context, long val);
 
     /**
      * @see org.sqlite.core.DB#result_int(long, int)
      */
     @Override
-    public native synchronized void result_int(long context, int val);
+    public synchronized void result_int(long context, int val) throws SQLException {
+        result_int0(checkDb(), context, val);
+
+    }
+
+    static native void result_int0(NativeDB db, long context, int val);
 
     /**
      * @see org.sqlite.core.DB#result_error(long, java.lang.String)
      */
     @Override
-    public void result_error(long context, String err) {
-    	result_error0(context, toObject(err), stringEncoding.value);
+    public synchronized void result_error(long context, String err) throws SQLException {
+    	result_error0(checkDb(), context, toObject(err), stringEncoding.value);
     }
 
-    native synchronized void result_error0(long context, Object err, int mode);
+    static native void result_error0(NativeDB db, long context, Object err, int mode);
 
     /**
      * @see org.sqlite.core.DB#value_text(org.sqlite.Function, int)
      */
     @Override
-    public String value_text(Function f, int arg) {
-        return toString(value_text0(f, arg, stringEncoding.value));
+    public synchronized String value_text(Function f, int arg) throws SQLException {
+        return toString(value_text0(checkDb(), f, arg, stringEncoding.value));
     }
 
-    native synchronized Object value_text0(Function f, int arg, int mode);
+    static native Object value_text0(NativeDB db, Function f, int arg, int mode);
 
     /**
      * @see org.sqlite.core.DB#value_blob(org.sqlite.Function, int)
      */
     @Override
-    public native synchronized byte[] value_blob(Function f, int arg);
+    public synchronized byte[] value_blob(Function f, int arg) throws SQLException {
+        return value_blob0(checkDb(), f, arg);
+    }
+
+    static native byte[] value_blob0(NativeDB db, Function f, int arg);
 
     /**
      * @see org.sqlite.core.DB#value_double(org.sqlite.Function, int)
      */
     @Override
-    public native synchronized double value_double(Function f, int arg);
+    public synchronized double value_double(Function f, int arg) throws SQLException {
+        return value_double0(checkDb(),f, arg);
+    }
+
+    static native double value_double0(NativeDB db, Function f, int arg);
 
     /**
      * @see org.sqlite.core.DB#value_long(org.sqlite.Function, int)
      */
     @Override
-    public native synchronized long value_long(Function f, int arg);
+    public synchronized long value_long(Function f, int arg) throws SQLException {
+        return value_long0(checkDb(), f, arg);
+    }
+
+    static native long value_long0(NativeDB db, Function f, int arg);
 
     /**
      * @see org.sqlite.core.DB#value_int(org.sqlite.Function, int)
      */
     @Override
-    public native synchronized int value_int(Function f, int arg);
+    public synchronized int value_int(Function f, int arg) throws SQLException {
+        return value_int0(checkDb(), f, arg);
+    }
+
+    static native int value_int0(NativeDB db, Function f, int arg);
 
     /**
      * @see org.sqlite.core.DB#value_type(org.sqlite.Function, int)
      */
     @Override
-    public native synchronized int value_type(Function f, int arg);
+    public synchronized int value_type(Function f, int arg) throws SQLException {
+        return value_type0(checkDb(), f, arg);
+    }
+
+    static native int value_type0(NativeDB db, Function f, int arg);
 
     /**
      * @see org.sqlite.core.DB#create_function(java.lang.String, org.sqlite.Function, int, int)
      */
     @Override
-    public int create_function(String name, Function func, int nArgs, int flags) {
-        return create_function0(toObject(name), func, nArgs, flags, stringEncoding.value);
+    public synchronized int create_function(String name, Function func, int nArgs, int flags) throws SQLException {
+        return create_function0(checkDb(), toObject(name), func, nArgs, flags, stringEncoding.value);
     }
 
-    native synchronized int create_function0(Object name, Function func, int nArgs, int flags, int mode);
+    static native int create_function0(NativeDB db, Object name, Function func, int nArgs, int flags, int mode);
 
     /**
      * @see org.sqlite.core.DB#destroy_function(java.lang.String, int)
      */
     @Override
-    public int destroy_function(String name, int nArgs) {
-        return destroy_function0(toObject(name), nArgs, stringEncoding.value);
+    public synchronized int destroy_function(String name, int nArgs) throws SQLException {
+        return destroy_function0(checkDb(), toObject(name), nArgs, stringEncoding.value);
     }
 
-    native synchronized int destroy_function0(Object name, int nArgs, int mode);
+    static native int destroy_function0(NativeDB db, Object name, int nArgs, int mode);
 
     /**
      * @see org.sqlite.core.DB#free_functions()
      */
     @Override
-    native synchronized void free_functions();
+    synchronized void free_functions() throws SQLException {
+        free_functions0(checkDb());
+    }
+
+    static native void free_functions0(NativeDB db);
 
     @Override
-    public native synchronized int limit(int id, int value) throws SQLException;
+    public synchronized int limit(int id, int value) throws SQLException {
+        return limit0(checkDb(), id, value);
+    }
+
+    static native int limit0(NativeDB db, int id, int value) throws SQLException;
 
     /**
      * @see org.sqlite.core.DB#backup(java.lang.String, java.lang.String, org.sqlite.core.DB.ProgressObserver)
      */
     @Override
-    public int backup(String dbName, String destFileName, ProgressObserver observer) throws SQLException {
-        return backup0(toObject(dbName), toObject(destFileName), observer, stringEncoding.value);
+    public synchronized int backup(String dbName, String destFileName, ProgressObserver observer) throws SQLException {
+        return backup0(checkDb(), toObject(dbName), toObject(destFileName), observer, stringEncoding.value);
     }
     
-    native synchronized int backup0(Object dbName, Object destFileName, ProgressObserver observer, int mode) throws SQLException;
+    static native int backup0(NativeDB db, Object dbName, Object destFileName, ProgressObserver observer, int mode) throws SQLException;
 
     /**
      * @see org.sqlite.core.DB#restore(java.lang.String, java.lang.String,
      *      org.sqlite.core.DB.ProgressObserver)
      */
     @Override
-    public int restore(String dbName, String sourceFileName, ProgressObserver observer)
+    public synchronized int restore(String dbName, String sourceFileName, ProgressObserver observer)
             throws SQLException {
-        return restore0(toObject(dbName), toObject(sourceFileName), observer, stringEncoding.value);
+        return restore0(checkDb(), toObject(dbName), toObject(sourceFileName), observer, stringEncoding.value);
     }
     
-    native synchronized int restore0(Object dbName, Object sourceFileName, ProgressObserver observer, int mode) throws SQLException;
+    static native int restore0(NativeDB db, Object dbName, Object sourceFileName, ProgressObserver observer, int mode) throws SQLException;
 
     // COMPOUND FUNCTIONS (for optimisation) /////////////////////////
-    String toString(Object object) {
+    static String toString(Object object) {
     	if (object == null)
     		return null;
     	if (object instanceof String) {
@@ -533,7 +682,7 @@ public final class NativeDB extends DB
 		return object.toString();
     }
     
-    Object toObject(String string) {
+    static Object toObject(String string) {
     	if (string == null)
     		return null;
     	switch (stringEncoding) {
@@ -551,7 +700,7 @@ public final class NativeDB extends DB
 		}
     }
 
-	byte[] UTF16ToUTF8(byte[] buf, String src) {
+	static byte[] UTF16ToUTF8(byte[] buf, String src) {
         int size = src.length(), 
             sp = 0, limit = size * 4;
 		byte[] dst = limit < buf.length ? buf : new byte[limit];
@@ -584,7 +733,7 @@ public final class NativeDB extends DB
 			: dst;
 	}
 
-	String UTF8ToUTF16(char[] buf, byte[] src, int size) {
+	static String UTF8ToUTF16(char[] buf, byte[] src, int size) {
         int sp = 0, limit = size * 2;
 		char[] dst = limit < buf.length ? buf : new char[limit];
 		for (int i = 0; i < size; ) {
@@ -627,17 +776,25 @@ public final class NativeDB extends DB
      * @see org.sqlite.core.DB#column_metadata(long)
      */
     @Override
-    boolean[][] column_metadata(long stmt) {
-        return column_metadata0(pointer, stmt);
+    synchronized boolean[][] column_metadata(long stmt) throws SQLException {
+        return column_metadata0(checkDb(), checkStatement(stmt));
     }
 
-    native synchronized boolean[][] column_metadata0(long pdb, long stmt);
+    static native boolean[][] column_metadata0(NativeDB db, long stmt);
 
     @Override
-    native synchronized void set_commit_listener(boolean enabled);
+    synchronized void set_commit_listener(boolean enabled) throws SQLException {
+        set_commit_listener0(checkDb(), enabled);
+    }
+
+    static native void set_commit_listener0(NativeDB db, boolean enabled);
 
     @Override
-    native synchronized void set_update_listener(boolean enabled);
+    synchronized void set_update_listener(boolean enabled) throws SQLException {
+        set_update_listener0(checkDb(), enabled);
+    }
+
+    static native void set_update_listener0(NativeDB db, boolean enabled);
 
     /**
      * Throws an SQLException
@@ -648,7 +805,15 @@ public final class NativeDB extends DB
         throw new SQLException(msg);
     }
     
-    public native synchronized void register_progress_handler(int vmCalls, ProgressHandler progressHandler) throws SQLException;
+    public synchronized void register_progress_handler(int vmCalls, ProgressHandler progressHandler) throws SQLException {
+        register_progress_handler0(checkDb(), vmCalls, progressHandler);
+    }
 
-    public native synchronized void clear_progress_handler() throws SQLException;
+    static native void register_progress_handler0(NativeDB db, int vmCalls, ProgressHandler progressHandler);
+
+    public synchronized void clear_progress_handler() throws SQLException {
+        clear_progress_handler0(checkDb());
+    }
+
+    static native void clear_progress_handler0(NativeDB db);
 }

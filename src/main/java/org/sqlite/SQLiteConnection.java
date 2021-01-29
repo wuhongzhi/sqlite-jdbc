@@ -430,7 +430,7 @@ public abstract class SQLiteConnection
      *
      * @param listener The listener to receive update events
      */
-    public void addUpdateListener(SQLiteUpdateListener listener) {
+    public void addUpdateListener(SQLiteUpdateListener listener) throws SQLException {
         db.addUpdateListener(listener);
     }
 
@@ -439,7 +439,7 @@ public abstract class SQLiteConnection
      *
      * @param listener The listener to no longer receive update events
      */
-    public void removeUpdateListener(SQLiteUpdateListener listener) {
+    public void removeUpdateListener(SQLiteUpdateListener listener) throws SQLException {
         db.removeUpdateListener(listener);
     }
 
@@ -449,7 +449,7 @@ public abstract class SQLiteConnection
      *
      * @param listener The listener to receive commit events
      */
-    public void addCommitListener(SQLiteCommitListener listener) {
+    public void addCommitListener(SQLiteCommitListener listener) throws SQLException {
         db.addCommitListener(listener);
     }
 
@@ -458,7 +458,7 @@ public abstract class SQLiteConnection
      *
      * @param listener The listener to no longer receive commit/rollback events.
      */
-    public void removeCommitListener(SQLiteCommitListener listener) {
+    public void removeCommitListener(SQLiteCommitListener listener) throws SQLException {
         db.removeCommitListener(listener);
     }
 

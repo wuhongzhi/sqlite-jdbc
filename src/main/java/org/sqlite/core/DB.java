@@ -910,28 +910,28 @@ public abstract class DB implements Codes
         return changes();
     }
 
-    abstract void set_commit_listener(boolean enabled);
-    abstract void set_update_listener(boolean enabled);
+    abstract void set_commit_listener(boolean enabled) throws SQLException ;
+    abstract void set_update_listener(boolean enabled) throws SQLException ;
 
-    public synchronized void addUpdateListener(SQLiteUpdateListener listener) {
+    public synchronized void addUpdateListener(SQLiteUpdateListener listener) throws SQLException {
         if (updateListeners.add(listener) && updateListeners.size() == 1) {
             set_update_listener(true);
         }
     }
 
-    public synchronized void addCommitListener(SQLiteCommitListener listener) {
+    public synchronized void addCommitListener(SQLiteCommitListener listener) throws SQLException {
         if (commitListeners.add(listener) && commitListeners.size() == 1) {
             set_commit_listener(true);
         }
     }
 
-    public synchronized void removeUpdateListener(SQLiteUpdateListener listener) {
+    public synchronized void removeUpdateListener(SQLiteUpdateListener listener) throws SQLException {
         if (updateListeners.remove(listener) && updateListeners.isEmpty()) {
             set_update_listener(false);
         }
     }
 
-    public synchronized void removeCommitListener(SQLiteCommitListener listener) {
+    public synchronized void removeCommitListener(SQLiteCommitListener listener) throws SQLException {
         if (commitListeners.remove(listener) && commitListeners.isEmpty()) {
             set_commit_listener(false);
         }
