@@ -29,10 +29,6 @@ static jclass pclass = 0;
 static jclass phandleclass = 0;
 
 static jclass arrclass = 0;
-static jclass bufclass = 0;
-static jclass strclass = 0;
-
-static jobject strencoding = 0;
 
 #ifdef SQLITE_JDBC_MEMORY
     #define MEMORY_MALLOC(x) sqlite3_malloc(x)
@@ -43,7 +39,7 @@ static jobject strencoding = 0;
 #endif    
 
 typedef enum {
-    ARRAY = 1, BUFFER, STRING_CUTF8, STRING_JUTF8, STRING_CESU8
+    ARRAY = 1, STRING
 } SQLITEJDBC_STRING_CODING;
 
 static void * toref(jlong value)
@@ -125,10 +121,7 @@ static char* arrayToBytes(JNIEnv *env, const jarray array, jsize* size) {
 }
 
 static jboolean UTF16toUTF8(JNIEnv *env, const jchar* src, char* dst, jsize size, jsize* out) {
-    if (out) {
-        *out = 0;
-    }
-
+    if (out) *out = 0;
     jint sp, i;
     for (sp = 0, i = 0; i < size; ) {
         uint16_t w1 = src[i++];
@@ -155,9 +148,7 @@ static jboolean UTF16toUTF8(JNIEnv *env, const jchar* src, char* dst, jsize size
         }
     }    
     dst[sp] = '\0';
-    if (out) {
-        *out = sp;
-    }
+    if (out) *out = sp;
 
     return JNI_TRUE;
 }
@@ -202,49 +193,27 @@ static jboolean UTF8toUTF16(JNIEnv *env, const char* src, jchar* dst, jsize size
 static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length, jint mode) {
     if (!bytes) return NULL;
 
-    switch (mode) {
-    case ARRAY:
+    if (mode == ARRAY) {
         return bytesToArray(env, bytes, length);
-    case BUFFER:
-        return (*env)->NewDirectByteBuffer(env, (void*)bytes, length);
-    case STRING_CESU8:
-        return (*env)->NewStringUTF(env, bytes);
-    case STRING_JUTF8:
-        {
-            static jmethodID mth = 0;
-            if (!mth) {
-                mth = (*env)->GetMethodID(
-                    env, strclass, "<init>", "([BIILjava/nio/charset/Charset;)V");
-            }
-
-            jbyteArray array;    
-            array = bytesToArray(env, bytes, length);
-            if (!array) return NULL;
-
-            return (*env)->NewObject(env, strclass, mth, array, 0, length, strencoding);
-        }
-    case STRING_CUTF8:    
-    default:
-        {
-            //STRING C
-            jchar* chars = MEMORY_MALLOC(length * sizeof(jchar));
-            if (!chars) {
-                throwex_outofmemory(env);
-                return NULL;
-            }
-
-            jsize size;
-            if (!UTF8toUTF16(env, bytes, chars, length, &size)) {
-                MEMORY_FREE(chars);
-                throwex_msg(env, "Bad UTF-8 coding!");
-                return NULL;
-            }
-
-            jstring ret = (*env)->NewString(env, chars, size);
-            MEMORY_FREE(chars);
-            return ret;
-        }
     }
+
+    //STRING C
+    jchar* chars = MEMORY_MALLOC(length * sizeof(jchar));
+    if (!chars) {
+        throwex_outofmemory(env);
+        return NULL;
+    }
+
+    jsize size;
+    if (!UTF8toUTF16(env, bytes, chars, length, &size)) {
+        MEMORY_FREE(chars);
+        throwex_msg(env, "Bad UTF-8 coding!");
+        return NULL;
+    }
+
+    jstring ret = (*env)->NewString(env, chars, size);
+    MEMORY_FREE(chars);
+    return ret;
 }
 
 static const char* objectToBytes(JNIEnv *env, jobject object, jsize* size, jint mode) {
@@ -255,78 +224,33 @@ static const char* objectToBytes(JNIEnv *env, jobject object, jsize* size, jint 
     if ((*env)->IsInstanceOf(env, object, arrclass)) {
         return arrayToBytes(env, object, size);
     }
-
-    //ByteBuffer    
-    if ((*env)->IsInstanceOf(env, object, bufclass)) {
-        if (size) {
-            *size = (*env)->GetDirectBufferCapacity(env, object) - 1;
-        }
-        return (*env)->GetDirectBufferAddress(env, object);
-    }
-
+    
     //String
-    if (!(*env)->IsInstanceOf(env, object, strclass)) {
-        throwex_msg(env, "object is not string");
+    jsize length = (*env)->GetStringLength(env, object);
+    char* ret = MEMORY_MALLOC(length * 4 + 1);
+    if (!ret) {
+        throwex_outofmemory(env);
         return NULL;
     }
-    switch (mode) {
-    case STRING_CESU8:
-        {
-            const char* ret = (*env)->GetStringUTFChars(env, object, JNI_FALSE);
-            if (size && ret) {
-                *size = strlen(ret);
-            }
-            return ret;
-        }
-    case STRING_JUTF8:
-        {
-            static jmethodID mth = 0;
-            if (!mth) {
-                mth = (*env)->GetMethodID(
-                    env, strclass, "getBytes", "(Ljava/nio/charset/Charset;)[B");
-            }
-            
-            jbyteArray array;
-            array = (*env)->CallObjectMethod(env, object, mth, strencoding);
-            if (!array) return NULL;
 
-            return arrayToBytes(env, array, size);
-        }
-    case STRING_CUTF8:
-    default:
-        {
-            jsize length = (*env)->GetStringLength(env, object);
-            char* ret = MEMORY_MALLOC(length * 4 + 1);
-            if (!ret) {
-                throwex_outofmemory(env);
-                return NULL;
-            }
+    const jchar* chars = (*env)->GetStringCritical(env, object, JNI_FALSE);
+    jboolean stat = UTF16toUTF8(env, chars, ret, length, size);
+    (*env)->ReleaseStringCritical(env, object, chars);
 
-            const jchar* chars = (*env)->GetStringCritical(env, object, JNI_FALSE);
-            jboolean stat = UTF16toUTF8(env, chars, ret, length, size);
-            (*env)->ReleaseStringCritical(env, object, chars);
-
-            if (!stat) {
-                MEMORY_FREE(ret);
-                throwex_msg(env, "Bad UTF-16 encoding!");
-                return NULL;        
-            }
-
-            return ret;
-        }
+    if (!stat) {
+        MEMORY_FREE(ret);
+        throwex_msg(env, "Bad UTF-16 encoding!");
+        return NULL;        
     }
+
+    return ret;
 }
 
-static void freeBytes(JNIEnv *env, jobject object, const char* bytes, jint mode) {
-    if (!bytes) return;
-    if (object) {
-        if (mode == BUFFER) return;
-        if (mode == STRING_CESU8) {
-            (*env)->ReleaseStringUTFChars(env, object, bytes);
-            return;
-        }
+static void freeBytes(void* ptr) 
+{
+    if (ptr) {
+        MEMORY_FREE(ptr);
     }
-    MEMORY_FREE((void*)bytes);
 }
 
 static sqlite3 * gethandle(JNIEnv *env, jobject this)
@@ -403,7 +327,7 @@ static void xFunc_error(sqlite3_context *context, JNIEnv *env)
     msg = (jstring)(*env)->CallObjectMethod(env, ex, exp_msg);
     if (!msg) { sqlite3_result_error(context, "unknown error", 13); return; }
 
-    msg_bytes = objectToBytes(env, msg, &size, STRING_CUTF8);
+    msg_bytes = objectToBytes(env, msg, &size, STRING);
     if (!msg_bytes)
     {
         sqlite3_result_error_nomem(context); 
@@ -411,7 +335,7 @@ static void xFunc_error(sqlite3_context *context, JNIEnv *env)
     }
 
     sqlite3_result_error(context, msg_bytes, size);
-    freeBytes(env, msg, msg_bytes, STRING_CUTF8);
+    freeBytes((void*)msg_bytes);
 }
 
 /* used to call xFunc, xStep and xFinal */
@@ -575,26 +499,6 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
     if (JNI_OK != (*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_2))
         return JNI_ERR;
 
-    jclass clazz = (*env)->FindClass(env, "java/nio/charset/Charset");
-    if (!clazz) return JNI_ERR;
-    jmethodID method = (*env)->GetStaticMethodID(env, clazz, "forName", 
-            "(Ljava/lang/String;)Ljava/nio/charset/Charset;");
-    if (!method) return JNI_ERR;
-    jstring utf8 = (*env)->NewStringUTF(env, "UTF-8");    
-    if (!utf8) return JNI_ERR;
-
-    strencoding = (*env)->CallStaticObjectMethod(env, clazz, method, utf8);
-    if (!strencoding) return JNI_ERR;
-    strencoding = (*env)->NewGlobalRef(env ,strencoding);
-
-    strclass = (*env)->FindClass(env, "java/lang/String");
-    if (!strclass) return JNI_ERR;
-    strclass = (*env)->NewGlobalRef(env, strclass);
-
-    bufclass = (*env)->FindClass(env, "java/nio/ByteBuffer");
-    if (!bufclass) return JNI_ERR;
-    bufclass = (*env)->NewGlobalRef(env, bufclass);
-
     arrclass = (*env)->FindClass(env, "[B");
     if (!arrclass) return JNI_ERR;
     arrclass = (*env)->NewGlobalRef(env, arrclass);
@@ -634,10 +538,7 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved)
 
     if (JNI_OK != (*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_2))
         return;
-    if (strencoding) (*env)->DeleteGlobalRef(env ,strencoding);
     if (arrclass) (*env)->DeleteGlobalRef(env, arrclass);
-    if (bufclass) (*env)->DeleteGlobalRef(env, bufclass);
-    if (strclass) (*env)->DeleteGlobalRef(env, strclass);
 
     if (dbclass) (*env)->DeleteGlobalRef(env, dbclass);
     if (fclass) (*env)->DeleteGlobalRef(env, fclass);
@@ -673,7 +574,7 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB__1open0(
     if (!file_bytes) return;
 
     ret = sqlite3_open_v2(file_bytes, &db, flags, NULL);
-    freeBytes(env, file, file_bytes, mode);
+    freeBytes((void*)file_bytes);
 
     if (ret == SQLITE_OK) {
         // Ignore failures, as we can tolerate regular result codes.
@@ -750,7 +651,7 @@ JNIEXPORT jlong JNICALL Java_org_sqlite_core_NativeDB_prepare0(
     if (!sql_bytes) return fromref(0);
 
     status = sqlite3_prepare_v2(gethandle(env, this), sql_bytes, size, &stmt, 0);
-    freeBytes(env, sql, sql_bytes, mode);
+    freeBytes((void*)sql_bytes);
 
     if (status != SQLITE_OK) {
         throwex_code(env, status);
@@ -772,7 +673,7 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB__1exec0(
     }
 
     status = sqlite3_exec(gethandle(env, this), sql_bytes, 0, 0, NULL);
-    freeBytes(env, sql, sql_bytes, mode);
+    freeBytes((void*)sql_bytes);
 
     if (status != SQLITE_OK) {
         throwex_code(env, status);
@@ -963,36 +864,27 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1double0(
 JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1text0(
     JNIEnv *env, jobject this, jlong stmt, jint pos, jobject v, jint mode)
 {
-    int rc;
-    const char* v_bytes;
     jsize size;
+    const char* v_bytes;
 
-    v_bytes = objectToBytes(env, v, &size, mode);
+    v_bytes = objectToBytes(env, v, &size, STRING);
     if (!v_bytes) return SQLITE_ERROR;
 
-    rc = sqlite3_bind_text(toref(stmt), pos, v_bytes, size, SQLITE_TRANSIENT);
-    freeBytes(env, v, v_bytes, mode);
-
-    return rc;
+    return sqlite3_bind_text(toref(stmt), pos, v_bytes, size, freeBytes);
 }
 
 JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1blob0(
     JNIEnv *env, jobject this, jlong stmt, jint pos, jbyteArray v)
 {
-    jint rc;
-    void *bytes;
     jsize size;
+    void *bytes;
 
     bytes = arrayToBytes(env, v, &size);
     if (!bytes) {
         return SQLITE_ERROR;
     }
 
-    rc = sqlite3_bind_blob(toref(stmt), pos, bytes, size, SQLITE_TRANSIENT);
-
-    freeBytes(env, v, bytes, STRING_CUTF8);
-
-    return rc;
+    return sqlite3_bind_blob(toref(stmt), pos, bytes, size, freeBytes);
 }
 
 JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1null0(
@@ -1012,14 +904,13 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1text0(
         return;
     }
 
-    value_bytes = objectToBytes(env, value, &size, mode);
+    value_bytes = objectToBytes(env, value, &size, STRING);
     if (!value_bytes) {
         sqlite3_result_error_nomem(toref(context));
         return;
     }
 
-    sqlite3_result_text(toref(context), value_bytes, size, SQLITE_TRANSIENT);
-    freeBytes(env, value, value_bytes, mode);
+    sqlite3_result_text(toref(context), value_bytes, size, freeBytes);
 }
 
 JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1blob0(
@@ -1034,8 +925,7 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1blob0(
     if (!bytes) {
         sqlite3_result_null(toref(context));
     } else {
-        sqlite3_result_blob(toref(context), bytes, size, SQLITE_TRANSIENT);
-        freeBytes(env, NULL, bytes, STRING_CUTF8);
+        sqlite3_result_blob(toref(context), bytes, size, freeBytes);
     }
 }
 
@@ -1066,7 +956,7 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1error0(
     err_bytes = objectToBytes(env, err, &size, mode);
     if (err_bytes) {
         sqlite3_result_error(toref(context), err_bytes, size);
-        freeBytes(env, err, err_bytes, mode);
+        freeBytes((void*)err_bytes);
     } else {
         sqlite3_result_error_nomem(toref(context));
     }
@@ -1188,7 +1078,7 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_create_1function0(
         );
     }
 
-    freeBytes(env, name, name_bytes, mode);
+    freeBytes((void*)name_bytes);
 
     return ret;
 }
@@ -1209,7 +1099,7 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_destroy_1function0(
         gethandle(env, this), name_bytes, nArgs, SQLITE_UTF8, 0, 0, 0, 0
     );
     
-    freeBytes(env, name, name_bytes, mode);
+    freeBytes((void*)name_bytes);
 
     return ret;
 }
@@ -1345,7 +1235,7 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_backup0(
     dDBName = objectToBytes(env, zDBName, NULL, mode);
     if (!dDBName)
     {
-        freeBytes(env, zFilename, dFileName, mode);
+        freeBytes((void*)dFileName);
         return SQLITE_NOMEM;
     }
 
@@ -1373,8 +1263,8 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_backup0(
     ** and return the result of this function. */
     (void)sqlite3_close(pFile);
 
-    freeBytes(env, zDBName, dDBName, mode);
-    freeBytes(env, zFilename, dFileName, mode);
+    freeBytes((void*)dDBName);
+    freeBytes((void*)dFileName);
 
     return rc;
 #else
@@ -1410,7 +1300,7 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_restore0(
     dDBName = objectToBytes(env, zDBName, NULL, mode);
     if (!dDBName)
     {
-        freeBytes(env, zFilename, dFileName, mode);
+        freeBytes((void*)dFileName);
         return SQLITE_NOMEM;
     }
 
@@ -1443,8 +1333,8 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_restore0(
     ** and return the result of this function. */
     (void)sqlite3_close(pFile);
 
-    freeBytes(env, zDBName, dDBName, mode);
-    freeBytes(env, zFilename, dFileName, mode);
+    freeBytes((void*)dDBName);
+    freeBytes((void*)dFileName);
 
     return rc;
 #else
@@ -1503,8 +1393,8 @@ void update_hook(void *context, int type, char const *database, char const *tabl
     JNIEnv *env = 0;
     (*update_handler_context.vm)->AttachCurrentThread(update_handler_context.vm, (void **)&env, 0);
 
-    jstring tableString = bytesToObject(env, table, strlen(table), STRING_CUTF8);
-    jstring databaseString = bytesToObject(env, database, strlen(database), STRING_CUTF8);
+    jstring tableString = bytesToObject(env, table, strlen(table), STRING);
+    jstring databaseString = bytesToObject(env, database, strlen(database), STRING);
     (*env)->CallVoidMethod(env, update_handler_context.handler, update_handler_context.method, type, databaseString, tableString, row);
 }
 

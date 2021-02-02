@@ -22,8 +22,6 @@ import java.util.StringTokenizer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.sqlite.core.NativeDB;
-import org.sqlite.core.NativeDB.SQLITEJDBC_STRING_CODING;
 
 /** These tests are designed to stress PreparedStatements on memory dbs. */
 public class PrepStmtTest
@@ -45,7 +43,7 @@ public class PrepStmtTest
 
     private static byte[] getUtf8Bytes(String str) {
         try {
-            return str.getBytes(NativeDB.stringEncoding == SQLITEJDBC_STRING_CODING.STRING_CESU8 ? "CESU-8" : "UTF-8");
+            return str.getBytes("UTF-8");
         }
         catch (UnsupportedEncodingException e) {
             fail(e.getMessage());

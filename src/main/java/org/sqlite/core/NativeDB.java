@@ -16,7 +16,6 @@
 
 package org.sqlite.core;
 
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -31,7 +30,7 @@ import org.sqlite.SQLiteJDBCLoader;
 public final class NativeDB extends DB
 {
 	public static enum SQLITEJDBC_STRING_CODING {
-		ARRAY(1), BUFFER(2), STRING_CUTF8(3), STRING_JUTF8(4), STRING_CESU8(5);
+		ARRAY(1), STRING(2);
 		int value;
 		SQLITEJDBC_STRING_CODING(int m) {
 			value = m;
@@ -671,21 +670,6 @@ public final class NativeDB extends DB
     	if (object instanceof String) {
     		return (String)object;
     	}
-    	if (object instanceof ByteBuffer) {
-    		ByteBuffer buf = (ByteBuffer) object;
-    		int limit = buf.limit();
-    		if (limit == 0) 
-    			return "";
-    		byte[] arr = byteBuffers.get();
-    		if (limit > arr.length) {
-    			arr = new byte[limit];
-    		}
-            buf.get(arr, 0, limit);
-            if (default_utf8) {
-                return new String(arr, 0, limit, StandardCharsets.UTF_8);
-            }
-            return UTF8ToUTF16(charBuffers.get(), arr, limit);
-    	}
     	if (object instanceof byte[]) {
             byte[] arr = (byte[]) object;
             int limit = arr.length;
@@ -704,14 +688,11 @@ public final class NativeDB extends DB
     		return null;
     	switch (stringEncoding) {
             case ARRAY:
-            case BUFFER:
                 if (default_utf8) {
                     return string.getBytes(StandardCharsets.UTF_8);
                 }
                 return UTF16ToUTF8(byteBuffers.get(), string);
-            case STRING_CUTF8:
-            case STRING_JUTF8:
-            case STRING_CESU8:
+            case STRING:
             default:
     		    return string;
 		}
