@@ -666,21 +666,22 @@ public final class NativeDB extends DB
     // COMPOUND FUNCTIONS (for optimisation) /////////////////////////
     String toString(Object object) {
     	if (object == null)
-    		return null;
-    	if (object instanceof String) {
-    		return (String)object;
-    	}
-    	if (object instanceof byte[]) {
+            return null;
+        switch (stringEncoding) {
+        case ARRAY:
             byte[] arr = (byte[]) object;
             int limit = arr.length;
-    		if (limit == 0)
+            if (limit == 0)
                 return "";
             if (default_utf8) {
                 return new String(arr, 0, limit, StandardCharsets.UTF_8);
             }
             return UTF8ToUTF16(charBuffers.get(), arr, limit);
+        case STRING:
+            return (String)object;
+        default:
+	    	return null;
     	}
-		return object.toString();
     }
     
     Object toObject(String string) {
@@ -693,8 +694,9 @@ public final class NativeDB extends DB
                 }
                 return UTF16ToUTF8(byteBuffers.get(), string);
             case STRING:
+                return string;
             default:
-    		    return string;
+                return null;
 		}
     }
 
