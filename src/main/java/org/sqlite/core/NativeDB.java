@@ -466,7 +466,9 @@ public final class NativeDB extends DB
      */
     @Override
     public synchronized void result_null(long context) throws SQLException {
-        checkDatabase().result_null0(context);
+        if (context != 0) {
+            checkDatabase().result_null0(context);
+        }
     }
 
     native void result_null0(long context);
@@ -476,7 +478,9 @@ public final class NativeDB extends DB
      */
     @Override
     public synchronized void result_text(long context, String val) throws SQLException {
-    	checkDatabase().result_text0(context, toObject(val), stringEncoding.value);
+        if (context != 0) {
+            checkDatabase().result_text0(context, toObject(val), stringEncoding.value);
+        }
     }
 
     native void result_text0(long context, Object val, int mode);
@@ -486,7 +490,9 @@ public final class NativeDB extends DB
      */
     @Override
     public synchronized void result_blob(long context, byte[] val) throws SQLException {
-        checkDatabase().result_blob0(context, val);
+        if (context != 0) {
+            checkDatabase().result_blob0(context, val);
+        }
     }
     
     native void result_blob0(long context, byte[] val);
@@ -496,7 +502,9 @@ public final class NativeDB extends DB
      */
     @Override
     public synchronized void result_double(long context, double val) throws SQLException {
-        checkDatabase().result_double0(context, val);
+        if (context != 0) {
+            checkDatabase().result_double0(context, val);
+        }
     }
 
     native void result_double0(long context, double val);
@@ -506,7 +514,9 @@ public final class NativeDB extends DB
      */
     @Override
     public synchronized void result_long(long context, long val) throws SQLException {
-        checkDatabase().result_long0(context, val);
+        if (context != 0) {
+            checkDatabase().result_long0(context, val);
+        }
     }
 
     native void result_long0(long context, long val);
@@ -516,7 +526,9 @@ public final class NativeDB extends DB
      */
     @Override
     public synchronized void result_int(long context, int val) throws SQLException {
-        checkDatabase().result_int0(context, val);
+        if (context != 0) {
+            checkDatabase().result_int0(context, val);
+        }
     }
 
     native void result_int0(long context, int val);
@@ -526,7 +538,9 @@ public final class NativeDB extends DB
      */
     @Override
     public synchronized void result_error(long context, String err) throws SQLException {
-    	checkDatabase().result_error0(context, toObject(err), stringEncoding.value);
+        if (context != 0) {
+            checkDatabase().result_error0(context, toObject(err), stringEncoding.value);
+        }
     }
 
     native void result_error0(long context, Object err, int mode);
@@ -740,32 +754,35 @@ public final class NativeDB extends DB
         int sp = 0, limit = size * 2;
 		char[] dst = limit < buf.length ? buf : new char[limit];
 		for (int i = 0; i < size; ) {
-            char w1 = (char)(src[i++] & 0xFF);
+            char w1 = (char)src[i++];
 			if (w1 < 0x80) {
                 dst[sp++] = (char)w1;
-			} else if (w1 < 0xE0) {
-                if (w1 < 0xC0 || i == size)  return null;
-                char w2 = (char)(src[i++] & 0xFF);
-                // if ((w2 & 0xC0) != 0x80) return null;
-                dst[sp++] = (char)(((w1 & 0x1F) << 6) ^ (w2 & 0x3F));
-			} else if (w1 < 0xF0) {
-                if (i + 1 == size)  return null;
-                char w2 = (char)(src[i++] & 0xFF);
-                char w3 = (char)(src[i++] & 0xFF);
-                // if ((w2 & 0xC0) != 0x80 || (w3 & 0xC0) != 0x80) return null;
-                dst[sp++] = (char)(((w1 & 0x0F) << 12) ^ ((w2 & 0x3F) << 6) ^ (w3 & 0x3F));
-			} else if (w1 < 0xF8) {
-                if (i + 2 == size)  return null;
-                char w2 = (char)(src[i++] & 0xFF);
-                char w3 = (char)(src[i++] & 0xFF);
-                char w4 = (char)(src[i++] & 0xFF);
-                // if ((w2 & 0xC0) != 0x80 || (w3 & 0xC0) != 0x80 || (w4 & 0xC0) != 0x80) return null;
-                int uc = (((w1 & 0x07) << 18) ^ ((w2 & 0x3F) << 12) ^ ((w3 & 0x3F) << 6) ^ (w4 & 0x3F)) - 0x10000;
-                dst[sp++] = (char)(((uc >> 10) & 0x3FF) ^ 0xD800);
-                dst[sp++] = (char)((uc & 0x3FF) ^ 0xDC00);
 			} else {
-                return null;
-			}
+                w1 &= 0xFF;
+                if (w1 < 0xE0) {
+                    if (w1 < 0xC0 || i == size)  return null;
+                    char w2 = (char)(src[i++] & 0x3F);
+                    // if ((w2 & 0xC0) != 0x80) return null;
+                    dst[sp++] = (char)(((w1 & 0x1F) << 6) ^ w2);
+                } else if (w1 < 0xF0) {
+                    if (i + 1 == size)  return null;
+                    char w2 = (char)(src[i++] & 0x3F);
+                    char w3 = (char)(src[i++] & 0x3F);
+                    // if ((w2 & 0xC0) != 0x80 || (w3 & 0xC0) != 0x80) return null;
+                    dst[sp++] = (char)(((w1 & 0x0F) << 12) ^ (w2 << 6) ^ w3);
+                } else if (w1 < 0xF8) {
+                    if (i + 2 == size)  return null;
+                    char w2 = (char)(src[i++] & 0x3F);
+                    char w3 = (char)(src[i++] & 0x3F);
+                    char w4 = (char)(src[i++] & 0x3F);
+                    // if ((w2 & 0xC0) != 0x80 || (w3 & 0xC0) != 0x80 || (w4 & 0xC0) != 0x80) return null;
+                    int uc = (((w1 & 0x07) << 18) ^ (w2 << 12) ^ (w3 << 6) ^ w4) - 0x10000;
+                    dst[sp++] = (char)(((uc >> 10) & 0x3FF) ^ 0xD800);
+                    dst[sp++] = (char)((uc & 0x3FF) ^ 0xDC00);
+                } else {
+                    return null;
+                }
+            }
 		}
 		
 		return new String(dst, 0, sp);
