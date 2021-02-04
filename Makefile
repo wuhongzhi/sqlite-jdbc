@@ -28,7 +28,7 @@ CCFLAGS:= -I$(SQLITE_OUT) -I$(SQLITE_INCLUDE) $(CCFLAGS)
 
 $(SQLITE_ARCHIVE):
 	@mkdir -p $(@D)
-	curl -L --max-redirs 0 -f -o$@ https://www.sqlite.org/2020/$(SQLITE_AMAL_PREFIX).zip || \
+	curl -L --max-redirs 0 -f -o$@ https://www.sqlite.org/2021/$(SQLITE_AMAL_PREFIX).zip || \
 	curl -L --max-redirs 0 -f -o$@ https://www.sqlite.org/$(SQLITE_AMAL_PREFIX).zip || \
 	curl -L --max-redirs 0 -f -o$@ https://www.sqlite.org/$(SQLITE_OLD_AMAL_PREFIX).zip
 
@@ -82,8 +82,10 @@ $(SQLITE_OUT)/sqlite3.o : $(SQLITE_UNPACKED)
 	    -DSQLITE_THREADSAFE=1 \
 	    -DSQLITE_DEFAULT_MEMSTATUS=0 \
 	    -DSQLITE_DEFAULT_FILE_PERMISSIONS=0666 \
+		-DSQLITE_DEFAULT_LOOKASIDE=2048,8192 \
 	    -DSQLITE_MAX_VARIABLE_NUMBER=250000 \
 	    -DSQLITE_MAX_MMAP_SIZE=1099511627776 \
+		-DSQLITE_MAX_ATTACHED=125 \
 	    $(SQLITE_FLAGS) \
 	    $(SQLITE_OUT)/sqlite3.c
 
