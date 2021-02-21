@@ -70,9 +70,14 @@ public final class NativeDB extends DB
         	stringEncoding = SQLITEJDBC_STRING_CODING.ARRAY;
         }
         default_utf8 = Boolean.valueOf(System.getProperty("sqlitejdbc.default_utf8", "true"));
-        int sqliteBuffer = Integer.getInteger("sqlitejdbc.buffer_size", 1 << 15);
-        byteBuffers = ThreadLocal.withInitial(() -> new byte[sqliteBuffer]);
-        charBuffers = ThreadLocal.withInitial(() -> new char[sqliteBuffer]);
+        if (default_utf8) {
+            byteBuffers = null;
+            charBuffers = null;
+        } else {
+            int sqliteBuffer = Integer.getInteger("sqlitejdbc.buffer_size", 1 << 15);
+            byteBuffers = ThreadLocal.withInitial(() -> new byte[sqliteBuffer]);
+            charBuffers = ThreadLocal.withInitial(() -> new char[sqliteBuffer]);
+        }
     }
 
     public NativeDB(String url, String fileName, SQLiteConfig config)

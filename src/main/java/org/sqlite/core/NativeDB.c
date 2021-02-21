@@ -84,9 +84,7 @@ static void throwex_outofmemory(JNIEnv *env)
 }
 
 static jbyteArray bytesToArray(JNIEnv *env, const char* bytes, jsize length) {
-    jbyteArray array;
-
-    array = (*env)->NewByteArray(env, length);
+    jbyteArray array = (*env)->NewByteArray(env, length);
     if (!array) {
         throwex_outofmemory(env);
         return NULL;
@@ -95,14 +93,6 @@ static jbyteArray bytesToArray(JNIEnv *env, const char* bytes, jsize length) {
         (*env)->SetByteArrayRegion(env, array, 0, length, bytes);
     }
     return array;
-}
-
-static inline jsize arrayToBytes(JNIEnv *env, jarray array, jsize length, char* dst) {
-    char* src = (*env)->GetPrimitiveArrayCritical(env, array, NULL);
-    memcpy(dst, src, length);
-    (*env)->ReleasePrimitiveArrayCritical(env, array, src, JNI_ABORT);
-    dst[length] = '\0';
-    return length;
 }
 
 static jboolean UTF16toUTF8(JNIEnv *env, const jchar* src, char* dst, jsize size, jsize* out) {
@@ -181,28 +171,28 @@ static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length, jint 
     //STRING C
 #ifdef SQLITE_JDBC_MEMORY_ALLOCA
     jchar chars[length];
+    jsize size;
+    if (!UTF8toUTF16(env, bytes, chars, length, &size)) {
+        throwex_msg(env, "Bad UTF-8 coding!");
+        return NULL;
+    }
+    return (*env)->NewString(env, chars, size);
 #else    
     jchar* chars = MEMORY_MALLOC(length * sizeof(jchar));
     if (!chars) {
         throwex_outofmemory(env);
         return NULL;
     }
-#endif
-
     jsize size;
     if (!UTF8toUTF16(env, bytes, chars, length, &size)) {
-#ifndef SQLITE_JDBC_MEMORY_ALLOCA
         MEMORY_FREE(chars);
-#endif
         throwex_msg(env, "Bad UTF-8 coding!");
         return NULL;
     }
-
     jstring ret = (*env)->NewString(env, chars, size);
-#ifndef SQLITE_JDBC_MEMORY_ALLOCA
     MEMORY_FREE(chars);
-#endif
     return ret;
+#endif
 }
 
 static const jsize objectLength(JNIEnv *env, jobject object, jint mode) {
@@ -215,13 +205,22 @@ static const jsize objectLength(JNIEnv *env, jobject object, jint mode) {
 static const jsize objectToBytes(JNIEnv *env, jobject object, jsize length, char* bytes, jint mode) {
     if (!object) return -1;
     if (mode == ARRAY) {
-        return arrayToBytes(env, object, length, bytes);
+        (*env)->GetByteArrayRegion(env, object, 0, length, bytes);
+        bytes[length] = '\0';
+        return length;
     }
+#ifdef SQLITE_JDBC_MEMORY_ALLOCA
+    jsize rsize = length >> 2;
+    jchar chars[rsize];
+    (*env)->GetStringRegion(env, object, 0, rsize, chars);
+    return UTF16toUTF8(env, chars, bytes, length >> 2, &rsize) ? rsize : -1;
+#else
     jsize rsize;
     const jchar* chars = (*env)->GetStringCritical(env, object, NULL);
     jboolean stat = UTF16toUTF8(env, chars, bytes, length >> 2, &rsize);
     (*env)->ReleaseStringCritical(env, object, chars);
     return stat ? rsize : -1;
+#endif
 }
 
 static sqlite3 * gethandle(JNIEnv *env, jobject this)
@@ -819,6 +818,11 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1text0(
     if (!v) return sqlite3_bind_null(toref(stmt), pos);
 
     jsize length = objectLength(env, v, mode);
+#ifdef SQLITE_JDBC_MEMORY_ALLOCA
+    char bytes[length + 1];
+    length = objectToBytes(env, v, length, bytes, mode);
+    return sqlite3_bind_text(toref(stmt), pos, bytes, length, SQLITE_TRANSIENT);
+#else
     char* bytes = MEMORY_MALLOC(length + 1);
     if (!bytes) return SQLITE_ERROR;
     length = objectToBytes(env, v, length, bytes, mode);
@@ -826,10 +830,11 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1text0(
         MEMORY_FREE(bytes);
         return SQLITE_ERROR;
     }
-#ifdef SQLITE_JDBC_MEMORY_COMPACT
+    #ifdef SQLITE_JDBC_MEMORY_COMPACT
     bytes = MEMORY_REALLOC(bytes, length);
-#endif
+    #endif
     return sqlite3_bind_text(toref(stmt), pos, bytes, length, MEMORY_FREE);
+#endif
 }
 
 JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1blob0(
@@ -838,12 +843,9 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1blob0(
     if (!v) return sqlite3_bind_null(toref(stmt), pos);
 
     jsize length = (*env)->GetArrayLength(env, v);
-    char* bytes = MEMORY_MALLOC(length + 1);
+    char* bytes = MEMORY_MALLOC(length);
     if (!bytes) return SQLITE_ERROR;
-    length = arrayToBytes(env, v, length, bytes);
-#ifdef SQLITE_JDBC_MEMORY_COMPACT
-    bytes = MEMORY_REALLOC(bytes, length);
-#endif
+    (*env)->GetByteArrayRegion(env, v, 0, length, bytes);
     return sqlite3_bind_blob(toref(stmt), pos, bytes, length, MEMORY_FREE);
 }
 
@@ -862,19 +864,29 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1text0(
     }
 
     jsize length = objectLength(env, value, mode);
+#ifdef SQLITE_JDBC_MEMORY_ALLOCA
+    char bytes[length + 1];
+    length = objectToBytes(env, v, length, bytes, mode);
+    if (length == -1) {
+        sqlite3_result_error_nomem(toref(context));
+    } else {
+        sqlite3_result_text(toref(context), bytes, length, SQLITE_TRANSIENT);
+    }
+#else    
     char* bytes = MEMORY_MALLOC(length + 1);
     if (bytes) {
         length = objectToBytes(env, value, length, bytes, mode);
         if (length != -1) {
-#ifdef SQLITE_JDBC_MEMORY_COMPACT
+    #ifdef SQLITE_JDBC_MEMORY_COMPACT
             bytes = MEMORY_REALLOC(bytes, length);
-#endif
+    #endif
             sqlite3_result_text(toref(context), bytes, length, MEMORY_FREE);
             return;
         }
     }
     sqlite3_result_error_nomem(toref(context));
     if (bytes) MEMORY_FREE(bytes);
+#endif    
 }
 
 JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1blob0(
@@ -886,12 +898,9 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1blob0(
     }
 
     jsize length = (*env)->GetArrayLength(env, value);
-    char* bytes = MEMORY_MALLOC(length + 1);
+    char* bytes = MEMORY_MALLOC(length);
     if (bytes) {
-        length = arrayToBytes(env, value, length, bytes);
-#ifdef SQLITE_JDBC_MEMORY_COMPACT
-        bytes = MEMORY_REALLOC(bytes, length);
-#endif
+        (*env)->GetByteArrayRegion(env, value, 0, length, bytes);
         sqlite3_result_blob(toref(context), bytes, length, MEMORY_FREE);
     } else {
         sqlite3_result_error_nomem(toref(context));
