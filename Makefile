@@ -86,7 +86,7 @@ $(SQLITE_OUT)/sqlite3.o : $(SQLITE_UNPACKED)
 	    -DSQLITE_MAX_VARIABLE_NUMBER=250000 \
 	    -DSQLITE_MAX_MMAP_SIZE=1099511627776 \
 		-DSQLITE_MAX_ATTACHED=125 \
-		-DSQLITE_JDBC_MEMORY_ALLOCA \
+		-DSQLITE_USE_ALLOCA \
 	    $(SQLITE_FLAGS) \
 	    $(SQLITE_OUT)/sqlite3.c
 
@@ -109,7 +109,7 @@ NATIVE_DLL:=$(NATIVE_DIR)/$(LIBNAME)
 
 # For cross-compilation, install docker. See also https://github.com/dockcross/dockcross
 # Disabled linux-armv6 build because of this issue; https://github.com/dockcross/dockcross/issues/190
-native-all: native win32 win64 mac64 linux32 linux64 linux-arm linux-armv7 linux-arm64 linux-android-arm linux-ppc64 alpine-linux64
+native-all: native win32 win64 linux32 linux64
 
 native: $(NATIVE_DLL)
 
@@ -128,10 +128,10 @@ win64: $(SQLITE_UNPACKED) jni-header
 	./docker/dockcross-windows-x64 -a $(DOCKER_RUN_OPTS) bash -c 'make clean-native native CROSS_PREFIX=x86_64-w64-mingw32.static- OS_NAME=Windows OS_ARCH=x86_64'
 
 linux32: $(SQLITE_UNPACKED) jni-header
-	docker run $(DOCKER_RUN_OPTS) -ti -v $$PWD:/work xerial/centos5-linux-x86 bash -c 'make clean-native native OS_NAME=Linux OS_ARCH=x86'
+	docker run $(DOCKER_RUN_OPTS) -ti -v $$PWD:/work wu.hongzhi/centos7-linux-x86 bash -c 'make clean-native native OS_NAME=Linux OS_ARCH=x86'
 
 linux64: $(SQLITE_UNPACKED) jni-header
-	docker run $(DOCKER_RUN_OPTS) -ti -v $$PWD:/work xerial/centos5-linux-x86_64 bash -c 'make clean-native native OS_NAME=Linux OS_ARCH=x86_64'
+	docker run $(DOCKER_RUN_OPTS) -ti -v $$PWD:/work wu.hongzhi/centos7-linux-x86_64 bash -c 'make clean-native native OS_NAME=Linux OS_ARCH=x86_64'
 
 alpine-linux64: $(SQLITE_UNPACKED) jni-header
 	docker run $(DOCKER_RUN_OPTS) -ti -v $$PWD:/work xerial/alpine-linux-x86_64 bash -c 'make clean-native native OS_NAME=Linux-Alpine OS_ARCH=x86_64'

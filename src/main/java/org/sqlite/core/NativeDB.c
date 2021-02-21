@@ -169,7 +169,7 @@ static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length, jint 
     }
 
     //STRING C
-#ifdef SQLITE_JDBC_MEMORY_ALLOCA
+#ifdef SQLITE_USE_ALLOCA
     jchar chars[length];
     jsize size;
     if (!UTF8toUTF16(env, bytes, chars, length, &size)) {
@@ -209,7 +209,7 @@ static const jsize objectToBytes(JNIEnv *env, jobject object, jsize length, char
         bytes[length] = '\0';
         return length;
     }
-#ifdef SQLITE_JDBC_MEMORY_ALLOCA
+#ifdef SQLITE_USE_ALLOCA
     jsize rsize = length >> 2;
     jchar chars[rsize];
     (*env)->GetStringRegion(env, object, 0, rsize, chars);
@@ -818,7 +818,7 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1text0(
     if (!v) return sqlite3_bind_null(toref(stmt), pos);
 
     jsize length = objectLength(env, v, mode);
-#ifdef SQLITE_JDBC_MEMORY_ALLOCA
+#ifdef SQLITE_USE_ALLOCA
     char bytes[length + 1];
     length = objectToBytes(env, v, length, bytes, mode);
     return sqlite3_bind_text(toref(stmt), pos, bytes, length, SQLITE_TRANSIENT);
@@ -830,9 +830,9 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1text0(
         MEMORY_FREE(bytes);
         return SQLITE_ERROR;
     }
-    #ifdef SQLITE_JDBC_MEMORY_COMPACT
+#ifdef SQLITE_JDBC_MEMORY_COMPACT
     bytes = MEMORY_REALLOC(bytes, length);
-    #endif
+#endif
     return sqlite3_bind_text(toref(stmt), pos, bytes, length, MEMORY_FREE);
 #endif
 }
@@ -864,7 +864,7 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1text0(
     }
 
     jsize length = objectLength(env, value, mode);
-#ifdef SQLITE_JDBC_MEMORY_ALLOCA
+#ifdef SQLITE_USE_ALLOCA
     char bytes[length + 1];
     length = objectToBytes(env, v, length, bytes, mode);
     if (length == -1) {
@@ -877,9 +877,9 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1text0(
     if (bytes) {
         length = objectToBytes(env, value, length, bytes, mode);
         if (length != -1) {
-    #ifdef SQLITE_JDBC_MEMORY_COMPACT
+#ifdef SQLITE_JDBC_MEMORY_COMPACT
             bytes = MEMORY_REALLOC(bytes, length);
-    #endif
+#endif
             sqlite3_result_text(toref(context), bytes, length, MEMORY_FREE);
             return;
         }
