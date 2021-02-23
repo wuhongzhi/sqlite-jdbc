@@ -38,6 +38,10 @@ static jclass phandleclass = 0;
     #define MEMORY_FREE free
 #endif    
 
+#ifndef SQLITE_JDBC_MAX_ALLOCA
+    #define SQLITE_JDBC_MAX_ALLOCA 0x200000
+#endif
+
 typedef enum {
     ARRAY = 1, STRING
 } SQLITEJDBC_STRING_CODING;
@@ -170,14 +174,16 @@ static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length, jint 
 
     //STRING C
 #ifdef SQLITE_USE_ALLOCA
-    jchar chars[length];
-    jsize size;
-    if (!UTF8toUTF16(env, bytes, chars, length, &size)) {
-        throwex_msg(env, "Bad UTF-8 coding!");
-        return NULL;
+    if (length < (SQLITE_JDBC_MAX_ALLOCA >> 1)) {
+        jchar chars[length];
+        jsize size;
+        if (!UTF8toUTF16(env, bytes, chars, length, &size)) {
+            throwex_msg(env, "Bad UTF-8 coding!");
+            return NULL;
+        }
+        return (*env)->NewString(env, chars, size);
     }
-    return (*env)->NewString(env, chars, size);
-#else    
+#endif
     jchar* chars = MEMORY_MALLOC(length * sizeof(jchar));
     if (!chars) {
         throwex_outofmemory(env);
@@ -192,7 +198,6 @@ static jobject bytesToObject(JNIEnv *env, const char* bytes, jsize length, jint 
     jstring ret = (*env)->NewString(env, chars, size);
     MEMORY_FREE(chars);
     return ret;
-#endif
 }
 
 static const jsize objectLength(JNIEnv *env, jobject object, jint mode) {
@@ -209,18 +214,18 @@ static const jsize objectToBytes(JNIEnv *env, jobject object, jsize length, char
         bytes[length] = '\0';
         return length;
     }
-#ifdef SQLITE_USE_ALLOCA
     jsize rsize = length >> 2;
-    jchar chars[rsize];
-    (*env)->GetStringRegion(env, object, 0, rsize, chars);
-    return UTF16toUTF8(env, chars, bytes, length >> 2, &rsize) ? rsize : -1;
-#else
-    jsize rsize;
+#ifdef SQLITE_USE_ALLOCA
+    if (rsize < (SQLITE_JDBC_MAX_ALLOCA >> 1)) {
+        jchar chars[rsize];
+        (*env)->GetStringRegion(env, object, 0, rsize, chars);
+        return UTF16toUTF8(env, chars, bytes, length >> 2, &rsize) ? rsize : -1;
+    }
+#endif
     const jchar* chars = (*env)->GetStringCritical(env, object, NULL);
     jboolean stat = UTF16toUTF8(env, chars, bytes, length >> 2, &rsize);
     (*env)->ReleaseStringCritical(env, object, chars);
     return stat ? rsize : -1;
-#endif
 }
 
 static sqlite3 * gethandle(JNIEnv *env, jobject this)
@@ -818,13 +823,13 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1text0(
     if (!v) return sqlite3_bind_null(toref(stmt), pos);
 
     jsize length = objectLength(env, v, mode);
-    if (mode == STRING) {
 #ifdef SQLITE_USE_ALLOCA
+    if (mode == STRING && length < SQLITE_JDBC_MAX_ALLOCA) {
         char bytes[length + 1];
         length = objectToBytes(env, v, length, bytes, mode);
         return sqlite3_bind_text(toref(stmt), pos, bytes, length, SQLITE_TRANSIENT);
-#endif
     }
+#endif
     char* bytes = MEMORY_MALLOC(length + 1);
     if (!bytes) return SQLITE_ERROR;
     length = objectToBytes(env, v, length, bytes, mode);
@@ -865,8 +870,8 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1text0(
     }
 
     jsize length = objectLength(env, value, mode);
-    if (mode == STRING) {
 #ifdef SQLITE_USE_ALLOCA
+    if (mode == STRING && length < SQLITE_JDBC_MAX_ALLOCA) {
         char bytes[length + 1];
         length = objectToBytes(env, value, length, bytes, mode);
         if (length == -1) {
@@ -874,8 +879,8 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1text0(
         } else {
             sqlite3_result_text(toref(context), bytes, length, SQLITE_TRANSIENT);
         }
-#endif
     }
+#endif
     char* bytes = MEMORY_MALLOC(length + 1);
     if (bytes) {
         length = objectToBytes(env, value, length, bytes, mode);
