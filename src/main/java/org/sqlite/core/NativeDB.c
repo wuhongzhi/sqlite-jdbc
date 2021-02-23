@@ -866,7 +866,7 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1text0(
     jsize length = objectLength(env, value, mode);
 #ifdef SQLITE_USE_ALLOCA
     char bytes[length + 1];
-    length = objectToBytes(env, v, length, bytes, mode);
+    length = objectToBytes(env, value, length, bytes, mode);
     if (length == -1) {
         sqlite3_result_error_nomem(toref(context));
     } else {
