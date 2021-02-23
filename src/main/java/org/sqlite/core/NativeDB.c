@@ -818,11 +818,13 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1text0(
     if (!v) return sqlite3_bind_null(toref(stmt), pos);
 
     jsize length = objectLength(env, v, mode);
+    if (mode == STRING) {
 #ifdef SQLITE_USE_ALLOCA
-    char bytes[length + 1];
-    length = objectToBytes(env, v, length, bytes, mode);
-    return sqlite3_bind_text(toref(stmt), pos, bytes, length, SQLITE_TRANSIENT);
-#else
+        char bytes[length + 1];
+        length = objectToBytes(env, v, length, bytes, mode);
+        return sqlite3_bind_text(toref(stmt), pos, bytes, length, SQLITE_TRANSIENT);
+#endif
+    }
     char* bytes = MEMORY_MALLOC(length + 1);
     if (!bytes) return SQLITE_ERROR;
     length = objectToBytes(env, v, length, bytes, mode);
@@ -834,7 +836,6 @@ JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1text0(
     bytes = MEMORY_REALLOC(bytes, length);
 #endif
     return sqlite3_bind_text(toref(stmt), pos, bytes, length, MEMORY_FREE);
-#endif
 }
 
 JNIEXPORT jint JNICALL Java_org_sqlite_core_NativeDB_bind_1blob0(
@@ -864,15 +865,17 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1text0(
     }
 
     jsize length = objectLength(env, value, mode);
+    if (mode == STRING) {
 #ifdef SQLITE_USE_ALLOCA
-    char bytes[length + 1];
-    length = objectToBytes(env, value, length, bytes, mode);
-    if (length == -1) {
-        sqlite3_result_error_nomem(toref(context));
-    } else {
-        sqlite3_result_text(toref(context), bytes, length, SQLITE_TRANSIENT);
+        char bytes[length + 1];
+        length = objectToBytes(env, value, length, bytes, mode);
+        if (length == -1) {
+            sqlite3_result_error_nomem(toref(context));
+        } else {
+            sqlite3_result_text(toref(context), bytes, length, SQLITE_TRANSIENT);
+        }
+#endif
     }
-#else    
     char* bytes = MEMORY_MALLOC(length + 1);
     if (bytes) {
         length = objectToBytes(env, value, length, bytes, mode);
@@ -886,7 +889,6 @@ JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1text0(
     }
     sqlite3_result_error_nomem(toref(context));
     if (bytes) MEMORY_FREE(bytes);
-#endif    
 }
 
 JNIEXPORT void JNICALL Java_org_sqlite_core_NativeDB_result_1blob0(
