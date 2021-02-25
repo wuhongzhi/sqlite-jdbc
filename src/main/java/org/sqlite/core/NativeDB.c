@@ -39,7 +39,7 @@ static jclass phandleclass = 0;
 #endif    
 
 #ifndef SQLITE_JDBC_MAX_ALLOCA
-    #define SQLITE_JDBC_MAX_ALLOCA 0x200000
+    #define SQLITE_JDBC_MAX_ALLOCA 32768
 #endif
 
 typedef enum {
