@@ -46,19 +46,8 @@ typedef enum {
     ARRAY = 1, STRING
 } SQLITEJDBC_STRING_CODING;
 
-static void * toref(jlong value)
-{
-    jvalue ret;
-    ret.j = value;
-    return (void *) ret.l;
-}
-
-static jlong fromref(void * value)
-{
-    jvalue ret;
-    ret.l = value;
-    return ret.j;
-}
+#define toref(x) (void *)(x)
+#define fromref(x) (jlong)(x)
 
 static void throwex_code(JNIEnv *env, jint code)
 {
