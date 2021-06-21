@@ -110,7 +110,7 @@ NATIVE_DLL:=$(NATIVE_DIR)/$(LIBNAME)
 
 # For cross-compilation, install docker. See also https://github.com/dockcross/dockcross
 # Disabled linux-armv6 build because of this issue; https://github.com/dockcross/dockcross/issues/190
-native-all: native win32 win64 linux32 linux64
+native-all: native win32 win64 linux32 linux64 linux-arm linux-arm64
 
 native: $(NATIVE_DLL)
 
